@@ -31,5 +31,15 @@ train = pd.merge(sales, calendar, on='d')
 
 train = pd.merge(train, prices, on=['item_id', 'store_id', 'wm_yr_wk'])
 
+from datetime import datetime
+from dateutil.parser import parse
+
+#Pasar a fecha
+#☺train['date'][0]
+#fecha=datetime.strptime(train['date'][0], '%Y-%m-%d')
+
+train['day']=np.zeros(train.shape[0],dtype='int')
+train['day']=train.date.iloc[:].map(lambda x: datetime.strptime(x, '%Y-%m-%d').day)
+
 pd.set_option('display.max_columns', len(train))
 train.head()
