@@ -117,3 +117,4 @@ train2=train_oh.iloc[1:15,:]
 pd.set_option('display.max_columns', len(train_oh))
 print(train.head())
 
+hola
