@@ -9,6 +9,8 @@ import os
 import csv
 import pandas as pd
 import numpy as np
+from datetime import datetime
+from dateutil.parser import parse
 
 
 os.chdir("C:/Users/ldelaguila/Documents/GitHub/Cholesk/m5-forecasting-accuracy")
@@ -19,27 +21,99 @@ sales=pd.read_csv('../m5-datos/sales_train_validation.csv', delimiter=",")
 submission=pd.read_csv('../m5-datos/sample_submission.csv', delimiter=",")
 prices=pd.read_csv('../m5-datos/sell_prices.csv', delimiter=",")
 
-#%% Estadistica basica
-prices.wm_yr_wk.describe()
 
-
-#%% Creación TRAIN
+#%% Creación TRAIN inicial
 
 sales = sales.melt(id_vars=sales.iloc[:,list(range(0,6))].columns, var_name="d", value_name='Units').dropna(how='any').reset_index()
-
 train = pd.merge(sales, calendar, on='d')
-
 train = pd.merge(train, prices, on=['item_id', 'store_id', 'wm_yr_wk'])
 
-from datetime import datetime
-from dateutil.parser import parse
 
-#Pasar a fecha
-#☺train['date'][0]
-#fecha=datetime.strptime(train['date'][0], '%Y-%m-%d')
+#%% Guardado
+train.to_csv('train_inicial.csv')
 
-train['day']=np.zeros(train.shape[0],dtype='int')
+#%% Modificacion train
+
+del(train['id'])
+del(train['index'])
+del(train['wm_yr_wk'])
+del(train['d'])
+del(train['weekday'])
+
+train['item_id']=train['item_id'].map(lambda x: x[(len(x)-(x[::-1]).find("_")):len(x)])
+train['dept_id']=train['dept_id'].map(lambda x: x[(len(x)-(x[::-1]).find("_")):len(x)])
+train['store_id']=train['store_id'].map(lambda x: x[(len(x)-(x[::-1]).find("_")):len(x)])
+
 train['day']=train.date.iloc[:].map(lambda x: datetime.strptime(x, '%Y-%m-%d').day)
+del(train['date'])
 
-pd.set_option('display.max_columns', len(train))
-train.head()
+train['event_name_1']=train['event_name_1'].fillna(0)
+train['event_type_1']=train['event_type_1'].fillna(0)
+train['event_name_2']=train['event_name_2'].fillna(0)
+train['event_type_2']=train['event_type_2'].fillna(0)
+
+#%% Analisis train
+train2=train.iloc[1:15,:]
+
+#train.to_csv('train_mod1.csv')
+train=pd.read_csv('train_mod1.csv', delimiter=",")
+
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import OneHotEncoder
+
+label_encoder = LabelEncoder()
+train.event_name_1 = label_encoder.fit_transform(train.event_name_1.map(lambda x: str(x)))
+train.event_type_1 = label_encoder.fit_transform(train.event_type_1.map(lambda x: str(x)))
+train.event_name_2 = label_encoder.fit_transform(train.event_name_2.map(lambda x: str(x)))
+train.event_type_2 = label_encoder.fit_transform(train.event_type_2.map(lambda x: str(x)))
+train['item_id']=train['item_id'].map(lambda x: int(x))
+del(train_oh['Unnamed: 0'])
+
+#onehot encoding con sklearn
+# integer_encoded = label_encoder.fit_transform(train.dept_id.map(lambda x: str(x)))
+# onehot_encoder = OneHotEncoder(sparse=False)
+# integer_encoded = integer_encoded.reshape(len(integer_encoded), 1)
+# onehot_encoded = pd.DataFrame(onehot_encoder.fit_transform(integer_encoded))
+# onehot_encoded.columns = ["dept_1", "dept_2", "dept_3"]
+# train_oh=pd.concat([train, onehot_encoded], axis=1)
+# del(train_oh['dept_id'])
+#con pd.get_dummies
+
+train_oh=pd.get_dummies(train)
+#train_oh.to_csv('train_oh.csv')
+
+
+#%% Gaussian distribution
+train_oh=pd.read_csv('train_oh.csv', delimiter=",")
+train2=train_oh.iloc[1:15,:]
+train_oh.describe()
+
+# from sklearn import preprocessing
+# gaussian_scaler = preprocessing.PowerTransformer(method='yeo-johnson', standardize=False)
+# train_oh1 = gaussian_scaler.fit_transform(train_oh.iloc[0:23000000,])
+# train_oh2 = gaussian_scaler.fit_transform(train_oh.iloc[23000001:train_oh.shape[0],])
+
+X=train_oh.copy()
+del(X['Units'])
+y=train_oh['Units'].copy()
+from sklearn.model_selection import train_test_split 
+from sklearn import linear_model
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.30, random_state = 123, shuffle = False)
+
+
+regr = linear_model.LinearRegression()
+
+# Train the model using the training sets
+regr.fit(X_train, y_train)
+
+# Make predictions using the testing set
+pred = regr.predict(X_test)
+
+
+
+
+train2=train_oh.iloc[1:15,:]
+
+pd.set_option('display.max_columns', len(train_oh))
+print(train.head())
+
