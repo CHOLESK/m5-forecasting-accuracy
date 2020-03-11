@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 from dateutil.parser import parse
+import matplotlib.pyplot as plt
 
 
 os.chdir("C:/Users/ldelaguila/Documents/GitHub/Cholesk/m5-forecasting-accuracy")
@@ -84,18 +85,20 @@ train_oh=pd.get_dummies(train)
 
 
 #%% Gaussian distribution
+os.chdir('C:/Users/ldelaguila/Google Drive/ARC_KAGGLE/m5-datos')
 train_oh=pd.read_csv('train_oh.csv', delimiter=",")
+os.chdir("C:/Users/ldelaguila/Documents/GitHub/Cholesk/m5-forecasting-accuracy")
 train2=train_oh.iloc[1:15,:]
-train_oh.describe()
+
 
 # from sklearn import preprocessing
 # gaussian_scaler = preprocessing.PowerTransformer(method='yeo-johnson', standardize=False)
 # train_oh1 = gaussian_scaler.fit_transform(train_oh.iloc[0:23000000,])
 # train_oh2 = gaussian_scaler.fit_transform(train_oh.iloc[23000001:train_oh.shape[0],])
 
-X=train_oh.copy()
+X=train_oh.iloc[0:1000000,:].copy()
+y=X['Units'].copy()
 del(X['Units'])
-y=train_oh['Units'].copy()
 from sklearn.model_selection import train_test_split 
 from sklearn import linear_model
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.30, random_state = 123, shuffle = False)
@@ -109,12 +112,13 @@ regr.fit(X_train, y_train)
 # Make predictions using the testing set
 pred = regr.predict(X_test)
 
-
-
+check=pd.DataFrame({"x":np.arange(pred.shape[0]),"real": y_test, "pred":pred})
+plt.scatter(check.iloc[:,0], check.iloc[:,1], color="black")
+plt.scatter(check.iloc[:,0], check.iloc[:,2], color="red")
+plt.show()
 
 train2=train_oh.iloc[1:15,:]
 
 pd.set_option('display.max_columns', len(train_oh))
 print(train.head())
 
-hola
