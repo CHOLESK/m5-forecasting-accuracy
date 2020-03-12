@@ -96,7 +96,7 @@ train2=train_oh.iloc[1:15,:]
 # train_oh1 = gaussian_scaler.fit_transform(train_oh.iloc[0:23000000,])
 # train_oh2 = gaussian_scaler.fit_transform(train_oh.iloc[23000001:train_oh.shape[0],])
 
-X=train_oh.iloc[0:1000000,:].copy()
+X=train_oh.iloc[0:100,:].copy()
 y=X['Units'].copy()
 del(X['Units'])
 from sklearn.model_selection import train_test_split 
@@ -111,6 +111,9 @@ regr.fit(X_train, y_train)
 
 # Make predictions using the testing set
 pred = regr.predict(X_test)
+
+from sklearn.metrics import mean_squared_error
+mean_squared_error(check.real, check.pred)
 
 check=pd.DataFrame({"x":np.arange(pred.shape[0]),"real": y_test, "pred":pred})
 plt.scatter(check.iloc[:,0], check.iloc[:,1], color="black")
