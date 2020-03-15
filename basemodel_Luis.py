@@ -70,22 +70,12 @@ train.event_type_2 = label_encoder.fit_transform(train.event_type_2.map(lambda x
 train['item_id']=train['item_id'].map(lambda x: int(x))
 del(train_oh['Unnamed: 0'])
 
-#onehot encoding con sklearn
-# integer_encoded = label_encoder.fit_transform(train.dept_id.map(lambda x: str(x)))
-# onehot_encoder = OneHotEncoder(sparse=False)
-# integer_encoded = integer_encoded.reshape(len(integer_encoded), 1)
-# onehot_encoded = pd.DataFrame(onehot_encoder.fit_transform(integer_encoded))
-# onehot_encoded.columns = ["dept_1", "dept_2", "dept_3"]
-# train_oh=pd.concat([train, onehot_encoded], axis=1)
-# del(train_oh['dept_id'])
-#con pd.get_dummies
-
 train_oh=pd.get_dummies(train)
 #train_oh.to_csv('train_oh.csv')
 
 
 #%% Gaussian distribution
-os.chdir('C:/Users/ldelaguila/Google Drive/ARC_KAGGLE/m5-datos')
+os.chdir('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5-datos')
 train_oh=pd.read_csv('train_oh.csv', delimiter=",")
 os.chdir("C:/Users/ldelaguila/Documents/GitHub/Cholesk/m5-forecasting-accuracy")
 train2=train_oh.iloc[1:15,:]
