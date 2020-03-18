@@ -14,7 +14,7 @@ from dateutil.parser import parse
 import matplotlib.pyplot as plt  
 
 
-os.chdir("C:/Users/ldelaguila/Documents/GitHub/Cholesk/m5-forecasting-accuracy")
+os.chdir('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5-datos')
 
 #%% Lectura de datos
 calendar=pd.read_csv('../m5-datos/calendar.csv', delimiter=",")
