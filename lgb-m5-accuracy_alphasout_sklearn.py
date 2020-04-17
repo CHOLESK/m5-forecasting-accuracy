@@ -122,19 +122,19 @@ def create_fea(dt):
             
             
 
-FIRST_DAY = 340 # If you want to load all the data set it to '1' -->  Great  memory overflow  ris
+FIRST_DAY = 1601 # If you want to load all the data set it to '1' -->  Great  memory overflow  ris
 
 df = create_dt(is_train=True, first_day= FIRST_DAY)
-df.shape
+# df.shape
 
-df.head()
-df.info()
+# df.head()
+# df.info()
 
 create_fea(df)
-df.shape
+# df.shape
 
 df.dropna(inplace = True)
-df.shape
+# df.shape
 
 cat_feats = ['item_id', 'dept_id','store_id', 'cat_id', 'state_id'] + ["event_name_1", "event_name_2", "event_type_1", "event_type_2"]
 useless_cols = ["id", "date", "sales","d", "wm_yr_wk", "weekday"]
@@ -144,35 +144,52 @@ y = df["sales"]
 
 np.random.seed(767)
 
-test_inds = np.random.choice(X_train.index.values, 2_000_000, replace = False)
-train_inds = np.setdiff1d(X_train.index.values, test_inds)
+test_inds = np.random.choice(X.index.values, round(0.25*X.shape[0]), replace = False)
+train_inds = np.setdiff1d(X.index.values, test_inds)
 
-X_train = X.iloc[train_inds,]
-X_test = X.iloc[test_inds]
-y_train = y.iloc[train_inds,]
-y_test = y.iloc[test_inds]
+X_train = X.loc[train_inds,]
+X_test = X.loc[test_inds,]
+y_train = y.loc[train_inds,]
+y_test = y.loc[test_inds,]
+
+del df, X, test_inds,train_inds ; gc.collect()
+
+#%%
 
 
-del df, X_train, y_train, fake_valid_inds,train_inds ; gc.collect()
+# m_lgb = lgb.LGBMRegressor(num_leaves=31,
+#                         learning_rate=0.05)
+# m_lgb.fit(X_train, y_train,
+#         eval_set=[(X_test, y_test)],
+#         eval_metric='rmse',
+#         early_stopping_rounds=5)
 
+
+#%%
+
+from sklearn.model_selection import RandomizedSearchCV
+from scipy.stats import uniform
+
+lgb = lgb.LGBMRegressor()
+from scipy.stats import uniform
 params = {
-        "objective" : "poisson",
-        "metric" :"rmse",
-        "force_row_wise" : True,
-        "learning_rate" : 0.073,
-#         "sub_feature" : 0.8,
-        "sub_row" : 0.73,
-        "bagging_freq" : 1,
-        "lambda_l2" : 0.1,
-#         "nthread" : 4
-    'verbosity': 1,
-    'num_iterations' : 1150,
-    'num_leaves': 124,
-    "min_data_in_leaf": 100,
+        # "boosting_type" : ['gbdt', 'rf'],
+        "objective" : ["poisson"],
+        "learning_rate" : uniform(loc=0.05, scale=0.5),
+        'verbosity': [1],
+        'num_iterations' : [1000],
+        # 'num_leaves': [100, 120, 140],
+        # 'min_child_samples ': [10, 20, 30],
+        "seed" : [10], 
+        # "n_estimators" : [100, 120, 140],
+        # 'reg_alpha' : uniform(loc=0.05, scale=1),
+        # 'reg_lambda ' : uniform(loc=0.05, scale=1),
 }
+clf = RandomizedSearchCV(estimator = lgb, param_distributions = params, n_iter = 10, n_jobs=-1, cv = 2, verbose = 1)
+search = clf.fit(X_train, y_train)
+search.best_params_
 
-m_lgb = lgb.train(params, train_data, valid_sets = [fake_valid_data], verbose_eval=20)
-m_lgb.save_model("model.lgb")
+
 
 alphas = [1.025, 1.023, 1.0175]
 weights = [1/len(alphas)]*len(alphas)
