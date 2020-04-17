@@ -1,0 +1,4 @@
+lgb-m5-accuracy --> original
+lgb-m5-accuracy_hotencoding --> hotencoding manual de las variables categoricas, sin pasarselo al modelo
+lgb-m5-accuracy_hotencoding_alphasout --> añade parte de Paco de sacar alphas fuera del ciclo
+lgb-m5-accuracy_alphasout --> original con alphas fuera del ciclo
