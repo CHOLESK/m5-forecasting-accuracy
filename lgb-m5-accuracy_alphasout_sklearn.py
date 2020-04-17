@@ -139,18 +139,19 @@ df.shape
 cat_feats = ['item_id', 'dept_id','store_id', 'cat_id', 'state_id'] + ["event_name_1", "event_name_2", "event_type_1", "event_type_2"]
 useless_cols = ["id", "date", "sales","d", "wm_yr_wk", "weekday"]
 train_cols = df.columns[~df.columns.isin(useless_cols)]
-X_train = df[train_cols]
-y_train = df["sales"]
+X = df[train_cols]
+y = df["sales"]
 
 np.random.seed(767)
 
-fake_valid_inds = np.random.choice(X_train.index.values, 2_000_000, replace = False)
-train_inds = np.setdiff1d(X_train.index.values, fake_valid_inds)
-train_data = lgb.Dataset(X_train.loc[train_inds] , label = y_train.loc[train_inds], 
-                         categorical_feature=cat_feats, free_raw_data=False)
-fake_valid_data = lgb.Dataset(X_train.loc[fake_valid_inds], label = y_train.loc[fake_valid_inds],
-                              categorical_feature=cat_feats,
-                 free_raw_data=False)
+test_inds = np.random.choice(X_train.index.values, 2_000_000, replace = False)
+train_inds = np.setdiff1d(X_train.index.values, test_inds)
+
+X_train = X.iloc[train_inds,]
+X_test = X.iloc[test_inds]
+y_train = y.iloc[train_inds,]
+y_test = y.iloc[test_inds]
+
 
 del df, X_train, y_train, fake_valid_inds,train_inds ; gc.collect()
 
@@ -180,8 +181,8 @@ sub = 0.
 te = create_dt(False)
 cols = [f"F{i}" for i in range(1,29)]
 
-for tdelta in range(0,28):
-   day = fday + timedelta(days=tdelta)
+for tdelta in range(0,15):
+   day = fday + timedelta(days=tdelta) - timedelta(days=15)
    print(tdelta, day)
    tst = te[(te.date >= day - timedelta(days=max_lags)) & (te.date <= day)].copy()
    create_fea(tst)
@@ -215,3 +216,5 @@ sub.to_csv("submission.csv",index=False)
 sub.head(10)
 sub.id.nunique(), sub["id"].str.contains("validation$").sum()
 sub.shape
+
+

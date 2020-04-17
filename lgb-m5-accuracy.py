@@ -18,6 +18,7 @@ import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 # For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
 
 import os
+os.chdir("C:/Users/laguila/Desktop/M5")
 files = []
 #for dirname, _, filenames in os.walk('/kaggle/input'):
 for dirname, _, filenames in os.walk('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5-datos'):
@@ -172,7 +173,7 @@ params = {
 }
 
 m_lgb = lgb.train(params, train_data, valid_sets = [fake_valid_data], verbose_eval=20) 
-m_lgb.save_model("model.lgb")
+m_lgb.save_model("model_Luis.lgb")
 
 alphas = [1.025, 1.023, 1.0175]
 weights = [1/len(alphas)]*len(alphas)
