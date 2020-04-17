@@ -170,23 +170,20 @@ del df, X, test_inds,train_inds ; gc.collect()
 from sklearn.model_selection import RandomizedSearchCV
 from scipy.stats import uniform
 
-lgb = lgb.LGBMRegressor()
+light = lgb.LGBMRegressor(num_iterations=1000, objective = "poisson", silent = False, seed = 10)
 from scipy.stats import uniform
 params = {
-        # "boosting_type" : ['gbdt', 'rf'],
-        "objective" : ["poisson"],
+         "boosting_type" : ['gbdt', 'rf'],
+        #"objective" : ["poisson"],
         "learning_rate" : uniform(loc=0.05, scale=0.5),
-        'verbosity': [1],
-        'num_iterations' : [1000],
         # 'num_leaves': [100, 120, 140],
         # 'min_child_samples ': [10, 20, 30],
-        "seed" : [10], 
-        # "n_estimators" : [100, 120, 140],
+         "n_estimators" : [100, 120, 140],
         # 'reg_alpha' : uniform(loc=0.05, scale=1),
         # 'reg_lambda ' : uniform(loc=0.05, scale=1),
 }
-clf = RandomizedSearchCV(estimator = lgb, param_distributions = params, n_iter = 10, n_jobs=-1, cv = 2, verbose = 1)
-search = clf.fit(X_train, y_train)
+clf = RandomizedSearchCV(estimator = light, param_distributions = params, n_iter = 10, n_jobs=-1, cv = 2, verbose = 1)
+search = clf.fit(X_train, y_train, eval_set=[(X_test, y_test)], eval_metric='rmse', early_stopping_rounds=5)
 search.best_params_
 
 
