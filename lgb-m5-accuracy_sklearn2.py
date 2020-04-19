@@ -139,12 +139,12 @@ def create_fea(dt):
             
             
 
-FIRST_DAY = 1601 # If you want to load all the data set it to '1' -->  Great  memory overflow  ris
+FIRST_DAY = 1700 # If you want to load all the data set it to '1' -->  Great  memory overflow  risk
 
 df = create_dt(is_train=True, first_day= FIRST_DAY)
 
 create_fea(df)
-dt.dropna(inplace = True)
+df.dropna(inplace = True)
 
 
 cat_feats = ["event_name_1", "event_name_2", "event_type_1", "event_type_2"]
@@ -163,25 +163,74 @@ X_test = X.loc[test_inds,]
 y_train = y.loc[train_inds]
 y_test = y.loc[test_inds]
 
-# X_train = lgb.Dataset(X.loc[train_inds] , label = y.loc[train_inds], 
-#                          categorical_feature=cat_feats, free_raw_data=False)
-# X_test = lgb.Dataset(X.loc[test_inds], label = y.loc[test_inds],
-#                               categorical_feature=cat_feats, free_raw_data=False)
 
 del df, X, y, test_inds,train_inds ; gc.collect()
 
-#%%
+#%% LGBM
+
+from time import time
+t = time()
+params = {
+        "objective" : "poisson",
+        "metric" :"rmse",
+        "force_row_wise" : True,
+        "learning_rate" : 0.073,
+        "sub_row" : 0.73,
+        "bagging_freq" : 1,
+        "lambda_l2" : 0.1,
+        'verbosity': 1,
+        'num_iterations' : 11,
+        'num_leaves': 124,
+        "min_data_in_leaf": 100,
+        "n_jobs" : -1
+}
+lgb_ = lgb.LGBMRegressor()
+lgb_.fit(X_train, y_train, eval_set=[(X_test, y_test)], early_stopping_rounds=5) 
+print(t-time())
+
+#%% XGBoost
+import xgboost as xgb
+params2 = {
+        "n_estimators" : 50,
+        #"max_depth" :,
+        "learning_rate" : 0.1,
+        "verbosity" : 1,
+        "booster" : "gblinear",
+        "n_jobs" : -1,
+        #"min_child_weight " :,
+        'reg_alpha ': 0.01,
+        'reg_lambda ' : 0,
+        'random_state': 124
+}
+t = time()
+xgb_ = xgb.XGBRegressor()
+xgb_.fit(X_train, y_train, eval_set=[(X_test, y_test)], early_stopping_rounds=5) 
+print(time()-t)
+evals_result = xgb.evals_result()
+
+#%%Voting regressor
+xgb_ = xgb.XGBRegressor()
+lgb_ = lgb.LGBMRegressor()
+from sklearn.ensemble import VotingRegressor
+vot = VotingRegressor([('xgb', xgb_), ('lgb', lgb_)])
+vot.fit(X_train, y_train)
+
+#%% Stacked model
+
+estimators = [('xgb', xgb.XGBRegressor()),
+              ('lgb', lgb.LGBMRegressor())]
+
+from sklearn.ensemble import GradientBoostingRegressor #Para pegar todos juntos
+from sklearn.ensemble import StackingRegressor
+
+reg = StackingRegressor(
+    estimators=estimators,
+    final_estimator=GradientBoostingRegressor(random_state=42))
+
+reg.fit(X_train, y_train)
 
 
-# m_lgb = lgb.LGBMRegressor(num_leaves=31,
-#                         learning_rate=0.05)
-# m_lgb.fit(X_train, y_train,
-#         eval_set=[(X_test, y_test)],
-#         eval_metric='rmse',
-#         early_stopping_rounds=5)
-
-
-#%%
+#%% Ranomized search
 
 from sklearn.model_selection import RandomizedSearchCV
 from scipy.stats import uniform
@@ -204,10 +253,29 @@ search3 = clf.fit(X_train, y_train, eval_set=[(X_test, y_test)], eval_metric='rm
 
 search3.best_params_
 
+#%% Custom Score
+
+#%%Preprocesamiento
+Ver las distribuciones de cada feature
+pipelines
+quitar variables poca importancia
+quitar correlacionadas
+lda/PCA/...
+elastic net
+stochastic gradient descent
+svm
+
+
+
+permutation importance and correlated features
+validation and learning curve
+
+#%% GUARDAR MODELOS
 
 from joblib import dump, load
-#dump(search3, 'search3.joblib') 
+dump(vot, 'vot.joblib') 
 
+#%% PREDICCION
 te = create_dt(False)
 cols = [f"F{i}" for i in range(1,29)]
 
@@ -220,7 +288,7 @@ for tdelta in range(0, 28):
         te.loc[te.date == day, "sales"] = search3.predict(tst) # magic multiplier by kyakovlev
 
 
-
+#%% MAGIC MULTIPLIER KYAKOVLEV
 alphas = [1.025, 1.023, 1.0175]
 alphas = [1]
 weights = [1/len(alphas)]*len(alphas)
