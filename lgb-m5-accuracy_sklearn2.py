@@ -138,7 +138,7 @@ def create_fea(dt):
             
             
 
-FIRST_DAY = 1700 # If you want to load all the data set it to '1' -->  Great  memory overflow  risk
+FIRST_DAY = 1800 # If you want to load all the data set it to '1' -->  Great  memory overflow  risk
 
 df = create_dt(is_train=True, first_day= FIRST_DAY)
 
@@ -178,7 +178,7 @@ params = {
         "bagging_freq" : 1,
         "lambda_l2" : 0.1,
         'verbosity': 1,
-        'num_iterations' : 11,
+        'num_iterations' : 1150,
         'num_leaves': 124,
         "min_data_in_leaf": 100,
         "n_jobs" : -1
@@ -252,10 +252,13 @@ search3 = clf.fit(X_train, y_train, eval_set=[(X_test, y_test)], eval_metric='rm
 
 search3.best_params_
 
-#%% Custom Score
+#%% Ver las distribuciones de cada feature y transformaciones
+
+
+
 
 #%%Preprocesamiento
-Ver las distribuciones de cada feature
+
 pipelines
 quitar variables poca importancia
 quitar correlacionadas
@@ -272,7 +275,7 @@ validation and learning curve
 #%% GUARDAR MODELOS
 
 from joblib import dump, load
-dump(vot, 'vot.joblib') 
+dump(reg, 'stack.joblib') 
 
 #%% PREDICCION
 te = create_dt(False)
