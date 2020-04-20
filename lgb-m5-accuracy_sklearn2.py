@@ -17,12 +17,7 @@ Created on Wed Apr 15 17:18:18 2020
 # For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
 
 import os
-os.chdir('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5-datos')
-files = []
-#for dirname, _, filenames in os.walk('/kaggle/input'):
-for dirname, _, filenames in os.walk('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5-datos'):
-    for filename in filenames:
-        files.append(os.path.join(dirname, filename))
+os.chdir('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5')
 
 # Any results you write to the current directory are saved as output.
 
@@ -46,9 +41,9 @@ fday
 
 def create_dt(is_train = True, nrows = None, first_day = 1200):
     #prices
-    prices = pd.read_csv("sell_prices.csv", dtype = PRICE_DTYPES)
+    prices = pd.read_csv("datos/sell_prices.csv", dtype = PRICE_DTYPES)
     #calendar        
-    cal = pd.read_csv("calendar.csv", dtype = CAL_DTYPES)
+    cal = pd.read_csv("datos/calendar.csv", dtype = CAL_DTYPES)
     cal["date"] = pd.to_datetime(cal["date"])
     
     start_day = max(1 if is_train  else tr_last-max_lags, first_day)
@@ -58,7 +53,7 @@ def create_dt(is_train = True, nrows = None, first_day = 1200):
     dtype.update({col: "category" for col in catcols if col != "id"})
     
     #validation
-    dt = pd.read_csv("sales_train_validation.csv", nrows = nrows, usecols = catcols + numcols, dtype = dtype)
+    dt = pd.read_csv("datos/sales_train_validation.csv", nrows = nrows, usecols = catcols + numcols, dtype = dtype)
     
     if not is_train:
         for day in range(tr_last+1, tr_last+ 28 +1):
