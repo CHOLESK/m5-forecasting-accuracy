@@ -12,15 +12,15 @@ from  datetime import datetime, timedelta
 
 
 if ejecucion=="Luis":
-    os.chdir('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5-datos')
+    os.chdir('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5')
 else:
-    os.chdir('C:/Users/PACO/Desktop/m5-forecasting-accuracy')
+    os.chdir('C:/Users/PACO/Google Drive/ARC_KAGGLE/m5')
 files = []
 #for dirname, _, filenames in os.walk('/kaggle/input'):
 for dirname, _, filenames in os.walk(os.getcwd()):
     for filename in filenames:
         files.append(os.path.join(dirname, filename))
-print(files[0])
+
 
 CAL_DTYPES={"event_name_1": "category", "event_name_2": "category", "event_type_1": "category", 
          "event_type_2": "category", "weekday": "category", 'wm_yr_wk': 'int16', "wday": "int16",

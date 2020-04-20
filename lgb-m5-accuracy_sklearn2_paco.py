@@ -20,9 +20,14 @@ import os
 #%% ===========================================================================
 #                                   FUNCIONES
 # =============================================================================
-
-os.chdir("C:/Users/PACO/Documents/GitHub/m5-forecasting-accuracy")
-from Dfs_creation_paco import create_dt, create_fea
+if ejecucion=="Luis":
+    os.chdir("C:/Users/laguila/Documents/GitHub/m5-forecasting-accuracy")
+    from Dfs_creation_paco import create_dt, create_fea
+    os.chdir('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5-datos/resultados')
+else:
+    os.chdir("C:/Users/PACO/Documents/GitHub/m5-forecasting-accuracy")
+    from Dfs_creation_paco import create_dt, create_fea
+    os.chdir('C:/Users/PACO/Google Drive/ARC_KAGGLE/m5-datos/resultados')
 
 # =============================================================================
 #%% ===========================================================================
