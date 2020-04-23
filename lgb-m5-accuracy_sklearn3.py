@@ -75,6 +75,21 @@ def create_fea(dt):
         for lag,lag_col in zip(lags, lag_cols):
             dt[f"rmean_{lag}_{win}"] = dt[["id", lag_col]].groupby("id")[lag_col].transform(lambda x : x.rolling(win).mean())
 
+    dt=pd.concat([dt, pd.get_dummies(dt.cat_id)], axis=1)
+    dt=pd.concat([dt, pd.get_dummies(dt.state_id)], axis=1)
+    
+    dept_id = pd.get_dummies(dt.dept_id)
+    idds = dept_id.columns
+    dept_id.columns = [f"dept_{idd}" for idd in idds ]
+    
+    store_id = pd.get_dummies(dt.store_id)
+    idds = store_id.columns
+    store_id.columns = [f"store_{idd}" for idd in idds ]
+    
+    dt=pd.concat([dt, store_id, dept_id], axis=1)
+    
+    dt.drop(["cat_id", "state_id", "dept_id", "store_id"], axis=1, inplace = True)
+    
     date_features = {
         "wday": "weekday",
         "week": "weekofyear",
@@ -90,38 +105,21 @@ def create_fea(dt):
         else:
             dt[date_feat_name] = getattr(dt["date"].dt, date_feat_func).astype("int16")
             
-          
-    dt=pd.concat([dt, pd.get_dummies(dt.cat_id)], axis=1)
-    dt=pd.concat([dt, pd.get_dummies(dt.state_id)], axis=1)
-    
-    dept_id = pd.get_dummies(dt.dept_id)
-    idds = dept_id.columns
-    dept_id.columns = [f"dept_{idd}" for idd in idds ]
-    
-    store_id = pd.get_dummies(dt.store_id)
-    idds = store_id.columns
-    store_id.columns = [f"store_{idd}" for idd in idds ]
-    
-    dt=pd.concat([dt, store_id, dept_id], axis=1)
-    
-    dt.drop(["cat_id", "state_id", "dept_id", "store_id"], axis=1, inplace = True)
-
     
 
-    
-            
-            
 
-FIRST_DAY = 340 # If you want to load all the data set it to '1' -->  Great  memory overflow  risk
+      
+
+FIRST_DAY = 1840 # If you want to load all the data set it to '1' -->  Great  memory overflow  risk
 
 df = create_dt(is_train=True, first_day= FIRST_DAY)
 
 create_fea(df)
 df.dropna(inplace = True)
-
+df.head()
 
 cat_feats = ["event_name_1", "event_name_2", "event_type_1", "event_type_2"]
-useless_cols = ["id", "sales", "date"]
+useless_cols = ["id", "sales", "date", "d"]
 train_cols = df.columns[~df.columns.isin(useless_cols)]
 X = df[train_cols]
 y = df["sales"]
@@ -136,6 +134,10 @@ X_test = X.loc[test_inds,]
 y_train = y.loc[train_inds]
 y_test = y.loc[test_inds]
 
+df["dept_id"] = df["dept_id"].astype("int16")
+df["store_id"] = df["store_id"].astype("int16")
+df["cat_id"] = df["cat_id"].astype("int16")
+df["state_id"] = df["state_id"].astype("int16")
 
 del df, X, y, test_inds,train_inds ; gc.collect()
 
@@ -161,6 +163,59 @@ lgb_ = lgb.LGBMRegressor(**params)
 lgb_.fit(X_train, y_train, eval_set=[(X_test, y_test)], early_stopping_rounds=5) 
 print(t-time())
 #RMSE = 2.45
+
+#%%
+
+# define blackbox function
+def f(x):
+    print(x)
+    params = {
+        'task': 'train',
+        'boosting_type': 'dart',
+        'objective': 'binary',
+        'learning_rate':0.1, # x[0],
+        'num_leaves':10,  # x[1],
+        'min_data_in_leaf':20,  # x[2],
+        'num_iteration':10,  # x[3],
+        'max_bin': 1, #x[4],
+        'verbose': 1
+    }
+    
+    gbm = lgb.LGBMRegressor(**params)
+
+    gbm.fit(X_train, y_train, eval_set=[(X_test, y_test)], early_stopping_rounds=5) 
+    
+            
+    print(type(gbm.predict(X_test, num_iteration=gbm.best_iteration)[0]),type(up_test.astype(int)[0]))
+    
+    print('score: ', mean_squared_error(gbm.predict(X_test, num_iteration=gbm.best_iteration), up_test.astype(float)))
+    
+    return mean_squared_error(gbm.predict(X_test, num_iteration=gbm.best_iteration), up_test.astype(float))
+
+# optimize params in these ranges
+spaces = [
+    (0.19, 0.20), #learning_rate
+    (2450, 2600), #num_leaves
+    (210, 230), #min_data_in_leaf
+    (310, 330), #num_iteration
+    (200, 220) #max_bin
+    ]
+
+# run optimization
+from skopt import gp_minimize
+res = gp_minimize(
+    f, spaces,
+    acq_func="EI",
+    n_calls=10) # increase n_calls for more performance
+
+# print tuned params
+print(res.x)
+
+# plot tuning process
+from skopt.plots import plot_convergence
+plot_convergence(res)
+
+
 
 #%% XGBoost
 import xgboost as xgb
