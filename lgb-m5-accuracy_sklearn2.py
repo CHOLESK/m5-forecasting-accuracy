@@ -117,7 +117,7 @@ def create_dt(is_train = True, nrows = None, first_day = 1200):
 
 
 def create_fea(dt):
-    lags = [2, 7]
+    lags = [7, 7]
     lag_cols = [f"lag_{lag}" for lag in lags ]
     for lag, lag_col in zip(lags, lag_cols):
         dt[lag_col] = dt[["id","sales"]].groupby("id")["sales"].shift(lag)
@@ -133,7 +133,7 @@ def create_fea(dt):
             
             
 
-FIRST_DAY = 1800 # If you want to load all the data set it to '1' -->  Great  memory overflow  risk
+FIRST_DAY = 340 # If you want to load all the data set it to '1' -->  Great  memory overflow  risk
 
 df = create_dt(is_train=True, first_day= FIRST_DAY)
 
@@ -161,7 +161,7 @@ y_test = y.loc[test_inds]
 del df, X, y, test_inds,train_inds ; gc.collect()
 
 #%% LGBM
-
+#2.27085 original
 from time import time
 t = time()
 params = {
@@ -172,15 +172,16 @@ params = {
         "sub_row" : 0.73,
         "bagging_freq" : 1,
         "lambda_l2" : 0.1,
+        "metric": ["rmse"],
         'verbosity': 1,
         'num_iterations' : 1150,
         'num_leaves': 124,
         "min_data_in_leaf": 100,
-        "n_jobs" : -1
 }
-lgb_ = lgb.LGBMRegressor()
+lgb_ = lgb.LGBMRegressor(**params)
 lgb_.fit(X_train, y_train, eval_set=[(X_test, y_test)], early_stopping_rounds=5) 
 print(t-time())
+#RMSE = 2.45
 
 #%% XGBoost
 import xgboost as xgb

@@ -18,12 +18,7 @@ import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 # For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
 
 import os
-os.chdir("C:/Users/laguila/Desktop/M5")
-files = []
-#for dirname, _, filenames in os.walk('/kaggle/input'):
-for dirname, _, filenames in os.walk('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5-datos'):
-    for filename in filenames:
-        files.append(os.path.join(dirname, filename))
+os.chdir('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5')
 
 # Any results you write to the current directory are saved as output.
 
@@ -46,13 +41,13 @@ fday = datetime(2016,4, 25)
 fday
 
 def create_dt(is_train = True, nrows = None, first_day = 1200):
-    prices = pd.read_csv(files[4], dtype = PRICE_DTYPES)
+    prices = pd.read_csv("datos/sell_prices.csv", dtype = PRICE_DTYPES)
     for col, col_dtype in PRICE_DTYPES.items():
         if col_dtype == "category":
             prices[col] = prices[col].cat.codes.astype("int16")
             prices[col] -= prices[col].min()
             
-    cal = pd.read_csv(files[0], dtype = CAL_DTYPES)
+    cal = pd.read_csv("datos/calendar.csv", dtype = CAL_DTYPES)
     cal["date"] = pd.to_datetime(cal["date"])
     for col, col_dtype in CAL_DTYPES.items():
         if col_dtype == "category":
@@ -64,7 +59,7 @@ def create_dt(is_train = True, nrows = None, first_day = 1200):
     catcols = ['id', 'item_id', 'dept_id','store_id', 'cat_id', 'state_id']
     dtype = {numcol:"float32" for numcol in numcols} 
     dtype.update({col: "category" for col in catcols if col != "id"})
-    dt = pd.read_csv(files[2], 
+    dt = pd.read_csv("datos/sales_train_validation.csv", 
                      nrows = nrows, usecols = catcols + numcols, dtype = dtype)
     
     for col in catcols:

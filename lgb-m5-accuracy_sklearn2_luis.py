@@ -15,6 +15,8 @@ import gc
 import numpy as np, pandas as pd
 import lightgbm as lgb
 import os
+import matplotlib.pyplot as plt
+
 # =============================================================================
 #%% ===========================================================================
 #                                   FUNCIONES
@@ -54,7 +56,7 @@ df.dropna(inplace = True)
 #                              SELECCIÓN VARIABLES
 # =============================================================================
 cat_feats = ["event_name_1", "event_name_2", "event_type_1", "event_type_2"]
-useless_cols = ["id", "sales", "date",'rmean_1_28','rmean_7_1','rmean_28_7']
+useless_cols = ["id", "sales", "date"]
 train_cols = df.columns[~df.columns.isin(useless_cols)]
 X = df[train_cols]
 y = df["sales"]
@@ -76,7 +78,7 @@ y_test = y.loc[test_inds]
 #                                  OPTIMIZACIÓN DE ESPACIO
 # =============================================================================
 del df, X, y, test_inds,train_inds ; gc.collect()
-os.chdir('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5/resultados')
+os.chdir('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5/')
 # =============================================================================
 
 #%% LGBM

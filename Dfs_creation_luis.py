@@ -24,32 +24,106 @@ tr_last = 1913
 fday = datetime(2016,4, 25) 
 fday
 
-def create_dt(is_train = True, nrows = None, first_day = 1800):
-    prices = pd.read_csv(os.getcwd()+"\\datos\\sell_prices.csv", dtype = PRICE_DTYPES)
-    for col, col_dtype in PRICE_DTYPES.items():
-        if col_dtype == "category":
-            prices[col] = prices[col].cat.codes.astype("int16")
-            prices[col] -= prices[col].min()
+# def create_dt(is_train = True, nrows = None, first_day = 1800):
+#     prices = pd.read_csv(os.getcwd()+"\\datos\\sell_prices.csv", dtype = PRICE_DTYPES)
+#     for col, col_dtype in PRICE_DTYPES.items():
+#         if col_dtype == "category":
+#             prices[col] = prices[col].cat.codes.astype("int16")
+#             prices[col] -= prices[col].min()
             
+#     cal = pd.read_csv(os.getcwd()+"\\datos\\calendar.csv", dtype = CAL_DTYPES)
+#     cal["date"] = pd.to_datetime(cal["date"])
+#     for col, col_dtype in CAL_DTYPES.items():
+#         if col_dtype == "category":
+#             cal[col] = cal[col].cat.codes.astype("int16")
+#             cal[col] -= cal[col].min()
+    
+#     start_day = max(1 if is_train  else tr_last-max_lags, first_day)
+#     numcols = [f"d_{day}" for day in range(start_day,tr_last+1)]
+#     catcols = ['id', 'item_id', 'dept_id','store_id', 'cat_id', 'state_id']
+#     dtype = {numcol:"float32" for numcol in numcols} 
+#     dtype.update({col: "category" for col in catcols if col != "id"})
+#     dt = pd.read_csv(os.getcwd()+"\\datos\\sales_train_validation.csv", 
+#                       nrows = nrows, usecols = catcols + numcols, dtype = dtype)
+    
+#     for col in catcols:
+#         if col != "id":
+#             dt[col] = dt[col].cat.codes.astype("int16")
+#             dt[col] -= dt[col].min()
+    
+#     if not is_train:
+#         for day in range(tr_last+1, tr_last+ 28 +1):
+#             dt[f"d_{day}"] = np.nan
+    
+#     dt = pd.melt(dt,
+#                   id_vars = catcols,
+#                   value_vars = [col for col in dt.columns if col.startswith("d_")],
+#                   var_name = "d",
+#                   value_name = "sales")
+    
+#     dt = dt.merge(cal, on= "d", copy = False)
+#     dt = dt.merge(prices, on = ["store_id", "item_id", "wm_yr_wk"], copy = False)
+    
+#     return dt
+
+
+# def create_fea(dt):
+#     lags = [2,7]
+#     lag_cols = [f"lag_{lag}" for lag in lags ]
+#     for lag, lag_col in zip(lags, lag_cols):
+#         dt[lag_col] = dt[["id","sales"]].groupby("id")["sales"].shift(lag)
+
+#     wins = [2,7]
+#     for win in wins :
+#         for lag,lag_col in zip(lags, lag_cols):
+#             dt[f"rmean_{lag}_{win}"] = dt[["id", lag_col]].groupby("id")[lag_col].transform(lambda x : x.rolling(win).mean())
+
+    
+    
+#     date_features = {
+        
+#         "wday": "weekday",
+#         "week": "weekofyear",
+#         "month": "month",
+#         "quarter": "quarter",
+#         "year": "year",
+#         "mday": "day"
+#     }
+    
+    
+#     for date_feat_name, date_feat_func in date_features.items():
+#         if date_feat_name in dt.columns:
+#             dt[date_feat_name] = dt[date_feat_name].astype("int16")
+#         else:
+#             dt[date_feat_name] = getattr(dt["date"].dt, date_feat_func).astype("int16")
+        
+            
+        
+        
+def create_dt(is_train = True, nrows = None, first_day = 1200):
+    #prices
+    prices = pd.read_csv(os.getcwd()+"\\datos\\sell_prices.csv", dtype = PRICE_DTYPES)
+    # for col, col_dtype in PRICE_DTYPES.items():
+    #     if col_dtype == "category":
+    #         prices[col] = prices[col].cat.codes.astype("int16")
+    #         prices[col] -= prices[col].min()
+    #calendar        
     cal = pd.read_csv(os.getcwd()+"\\datos\\calendar.csv", dtype = CAL_DTYPES)
     cal["date"] = pd.to_datetime(cal["date"])
-    for col, col_dtype in CAL_DTYPES.items():
-        if col_dtype == "category":
-            cal[col] = cal[col].cat.codes.astype("int16")
-            cal[col] -= cal[col].min()
+
+    # for col, col_dtype in CAL_DTYPES.items():
+    #     if col_dtype == "category":
+    #         cal[col] = cal[col].cat.codes.astype("int16")
+    #         cal[col] -= cal[col].min()
     
     start_day = max(1 if is_train  else tr_last-max_lags, first_day)
     numcols = [f"d_{day}" for day in range(start_day,tr_last+1)]
     catcols = ['id', 'item_id', 'dept_id','store_id', 'cat_id', 'state_id']
     dtype = {numcol:"float32" for numcol in numcols} 
     dtype.update({col: "category" for col in catcols if col != "id"})
-    dt = pd.read_csv(os.getcwd()+"\\datos\\sales_train_validation.csv", 
-                     nrows = nrows, usecols = catcols + numcols, dtype = dtype)
     
-    for col in catcols:
-        if col != "id":
-            dt[col] = dt[col].cat.codes.astype("int16")
-            dt[col] -= dt[col].min()
+    #validation
+    dt = pd.read_csv(os.getcwd()+"\\datos\\sales_train_validation.csv", nrows = nrows, usecols = catcols + numcols, dtype = dtype)
     
     if not is_train:
         for day in range(tr_last+1, tr_last+ 28 +1):
@@ -64,32 +138,38 @@ def create_dt(is_train = True, nrows = None, first_day = 1800):
     dt = dt.merge(cal, on= "d", copy = False)
     dt = dt.merge(prices, on = ["store_id", "item_id", "wm_yr_wk"], copy = False)
     
+    del(dt['weekday'])
+    del(dt['wm_yr_wk'])
+    dt['store_id'] = dt['store_id'].map(lambda x: x[-1:])
+    dt['dept_id'] = dt['dept_id'].map(lambda x: x[-1:])
+    dt['item_id'] = dt['item_id'].map(lambda x: x[-3:]).astype('int16')
+    
+    columns = [ 'event_name_1', 'event_type_1', 'event_name_2', 'event_type_2']
+    for col in columns: 
+        dt[col] = dt[col].cat.codes.astype("int16")
+        dt[col] -= dt[col].min()
+
     return dt
 
 
 def create_fea(dt):
-    lags = [1,7, 28]
+    lags = [2, 7]
     lag_cols = [f"lag_{lag}" for lag in lags ]
     for lag, lag_col in zip(lags, lag_cols):
         dt[lag_col] = dt[["id","sales"]].groupby("id")["sales"].shift(lag)
 
-    wins = [1,7, 28]
+    wins = [2, 7]
     for win in wins :
         for lag,lag_col in zip(lags, lag_cols):
             dt[f"rmean_{lag}_{win}"] = dt[["id", lag_col]].groupby("id")[lag_col].transform(lambda x : x.rolling(win).mean())
 
-    
-    
     date_features = {
-        
         "wday": "weekday",
         "week": "weekofyear",
         "month": "month",
         "quarter": "quarter",
         "year": "year",
         "mday": "day",
-#         "ime": "is_month_end",
-#         "ims": "is_month_start",
     }
     
 #     dt.drop(["d", "wm_yr_wk", "weekday"], axis=1, inplace = True)
@@ -100,3 +180,22 @@ def create_fea(dt):
         else:
             dt[date_feat_name] = getattr(dt["date"].dt, date_feat_func).astype("int16")
             
+          
+    dt=pd.concat([dt, pd.get_dummies(dt.cat_id)], axis=1)
+    dt=pd.concat([dt, pd.get_dummies(dt.state_id)], axis=1)
+    
+    dept_id = pd.get_dummies(dt.dept_id)
+    idds = dept_id.columns
+    dept_id.columns = [f"dept_{idd}" for idd in idds ]
+    
+    store_id = pd.get_dummies(dt.store_id)
+    idds = store_id.columns
+    store_id.columns = [f"store_{idd}" for idd in idds ]
+    
+    dt=pd.concat([dt, store_id, dept_id], axis=1)
+    
+    dt.drop(["cat_id", "state_id", "dept_id", "store_id"], axis=1, inplace = True)
+    
+
+
+
