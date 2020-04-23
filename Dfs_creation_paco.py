@@ -4,7 +4,7 @@ Created on Mon Apr 20 12:24:46 2020
 
 @author: PACO
 """
-
+ejecucion="Paco"
 import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 import os
@@ -14,7 +14,8 @@ from  datetime import datetime, timedelta
 if ejecucion=="Luis":
     os.chdir('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5')
 else:
-    os.chdir('C:/Users/PACO/Google Drive/ARC_KAGGLE/m5')
+    os.chdir("C:/Users/PACO/Google Drive (paco.noa.gut@gmail.com)/ARC_KAGGLE/m5/datos")
+    # os.chdir('C:/Users/PACO/Google Drive/ARC_KAGGLE/m5')
 files = []
 #for dirname, _, filenames in os.walk('/kaggle/input'):
 for dirname, _, filenames in os.walk(os.getcwd()):
@@ -32,8 +33,7 @@ pd.options.display.max_columns = 50
 h = 28 
 max_lags = 57
 tr_last = 1913
-fday = datetime(2016,4, 25) 
-fday
+
 
 def create_dt(is_train = True, nrows = None, first_day = 1800):
     prices = pd.read_csv(files[3], dtype = PRICE_DTYPES)
@@ -88,7 +88,7 @@ def create_fea(dt):
     for win in wins :
         for lag,lag_col in zip(lags, lag_cols):
             dt[f"rmean_{lag}_{win}"] = dt[["id", lag_col]].groupby("id")[lag_col].transform(lambda x : x.rolling(win).mean())
-
+            # dt[f"rstd_{lag}_{win}"] = dt[["id", lag_col]].groupby("id")[lag_col].transform(lambda x : x.rolling(win).std())
     
     
     date_features = {
