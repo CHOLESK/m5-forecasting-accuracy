@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Apr 20 12:24:46 2020
 
-@author: PACO
-"""
 
 import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
@@ -171,8 +166,6 @@ def create_fea(dt):
         "year": "year",
         "mday": "day",
     }
-    
-#     dt.drop(["d", "wm_yr_wk", "weekday"], axis=1, inplace = True)
     
     for date_feat_name, date_feat_func in date_features.items():
         if date_feat_name in dt.columns:
