@@ -1,20 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Apr 15 17:18:18 2020
 
-@author: PACO
-"""
-
-
-# This Python 3 environment comes with many helpful analytics libraries installed
-# It is defined by the kaggle/python docker image: https://github.com/kaggle/docker-python
-# For example, here's several helpful packages to load in 
-
-
-
-
-# Input data files are available in the "../input/" directory.
-# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
 
 import os
 os.chdir('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5')

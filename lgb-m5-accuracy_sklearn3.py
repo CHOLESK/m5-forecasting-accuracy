@@ -9,6 +9,9 @@ from  datetime import datetime, timedelta
 import gc
 import numpy as np, pandas as pd
 import lightgbm as lgb
+from dfply import *
+from sklearn.metrics import mean_squared_error
+import matplotlib.pyplot as plt
 
 CAL_DTYPES={"event_name_1": "category", "event_name_2": "category", "event_type_1": "category", 
          "event_type_2": "category", "weekday": "category", 'wm_yr_wk': 'int16', "wday": "int16",
@@ -65,16 +68,18 @@ def create_dt(is_train = True, nrows = None, first_day = 1200):
 
 
 def create_fea(dt):
-    lags = [2, 7]
+    lags = [1, 7]
     lag_cols = [f"lag_{lag}" for lag in lags ]
     for lag, lag_col in zip(lags, lag_cols):
         dt[lag_col] = dt[["id","sales"]].groupby("id")["sales"].shift(lag)
-
-    wins = [2, 7]
-    for win in wins :
+    dt = dt >> group_by(X.dept_id,X.store_id ,X.cat_id,X.state_id, X.date) >> summarize(Sales_1=X.lag_1.mean())  >> full_join(dt, by=["date", "dept_id","store_id" ,"cat_id","state_id"])
+    dt["Sales_7"] = dt[["id", 'Sales_1']].groupby("id")['Sales_1'].transform(lambda x : x.rolling(7).mean())
+    wins = [1, 7]
+    for win in wins:
         for lag,lag_col in zip(lags, lag_cols):
             dt[f"rmean_{lag}_{win}"] = dt[["id", lag_col]].groupby("id")[lag_col].transform(lambda x : x.rolling(win).mean())
-
+    
+    
     dt=pd.concat([dt, pd.get_dummies(dt.cat_id)], axis=1)
     dt=pd.concat([dt, pd.get_dummies(dt.state_id)], axis=1)
     
@@ -94,7 +99,7 @@ def create_fea(dt):
         "wday": "weekday",
         "week": "weekofyear",
         "month": "month",
-        "quarter": "quarter",
+        #"quarter": "quarter",
         "year": "year",
         "mday": "day",
     }
@@ -104,22 +109,26 @@ def create_fea(dt):
             dt[date_feat_name] = dt[date_feat_name].astype("int16")
         else:
             dt[date_feat_name] = getattr(dt["date"].dt, date_feat_func).astype("int16")
+    
+    dt.drop(["d"], axis=1, inplace = True)
+
+    return dt
             
     
 
 
       
 
-FIRST_DAY = 1840 # If you want to load all the data set it to '1' -->  Great  memory overflow  risk
+FIRST_DAY = 500 # If you want to load all the data set it to '1' -->  Great  memory overflow  risk
 
 df = create_dt(is_train=True, first_day= FIRST_DAY)
 
-create_fea(df)
+df = create_fea(df)
 df.dropna(inplace = True)
 df.head()
 
 cat_feats = ["event_name_1", "event_name_2", "event_type_1", "event_type_2"]
-useless_cols = ["id", "sales", "date", "d"]
+useless_cols = ["id", "sales", "date"]
 train_cols = df.columns[~df.columns.isin(useless_cols)]
 X = df[train_cols]
 y = df["sales"]
@@ -134,71 +143,89 @@ X_test = X.loc[test_inds,]
 y_train = y.loc[train_inds]
 y_test = y.loc[test_inds]
 
-df["dept_id"] = df["dept_id"].astype("int16")
-df["store_id"] = df["store_id"].astype("int16")
-df["cat_id"] = df["cat_id"].astype("int16")
-df["state_id"] = df["state_id"].astype("int16")
 
 del df, X, y, test_inds,train_inds ; gc.collect()
 
-#%% LGBM
+#%% LGBM individual
 #2.27085 original
-from time import time
-t = time()
-params = {
-        "objective" : "poisson",
-        "metric" :"rmse",
-        "force_row_wise" : True,
-        "learning_rate" : 0.073,
-        "sub_row" : 0.73,
-        "bagging_freq" : 1,
-        "lambda_l2" : 0.1,
-        "metric": ["rmse"],
-        'verbosity': 1,
-        'num_iterations' : 1150,
-        'num_leaves': 124,
-        "min_data_in_leaf": 100,
-}
-lgb_ = lgb.LGBMRegressor(**params)
-lgb_.fit(X_train, y_train, eval_set=[(X_test, y_test)], early_stopping_rounds=5) 
-print(t-time())
-#RMSE = 2.45
+# from time import time
+# t = time()
+# params = {
+#     'num_threads': 8,
+#     'task': 'train',
+#     'boosting_type': 'gbdt',
+#     'objective': 'poisson',
+#     'learning_rate': 0.1579020089834217,
+#     'num_leaves': 2487, 
+#     'min_data_in_leaf': 217,
+#     'num_iteration': 1500, 
+#     'max_bin': 208,
+#     'verbose': 1,
+#     'metric': "rmse",
+#     'max_depth': 5
+# }
+# lgb_ = lgb.LGBMRegressor(**params)
+# lgb_.fit(X_train, y_train, eval_set=[(X_test, y_test)], early_stopping_rounds=5) 
+# print(t-time())
 
-#%%
+#%% Ranomized search
+
+# from sklearn.model_selection import RandomizedSearchCV
+# from scipy.stats import uniform
+
+# light = lgb.LGBMRegressor(num_iterations=15, objective = "poisson", silent = False, seed = 10)
+# from scipy.stats import uniform
+# params = {
+#          "boosting_type" : ['gbdt', 'rf'],
+#         #"objective" : ["poisson"],
+#         "learning_rate" : uniform(loc=0.05, scale=0.5),
+#         # 'num_leaves': [100, 120, 140],
+#          'min_child_samples ': [10, 20, 30],
+#         # "n_estimators" : [100, 120, 140]
+#         # 'reg_alpha' : uniform(loc=0.05, scale=1),
+#         # 'reg_lambda ' : uniform(loc=0.05, scale=1),
+# }
+# clf = RandomizedSearchCV(estimator = light, param_distributions = params, n_iter = 10, n_jobs=-1, cv = 2, verbose = 1)
+# print("Training...")
+# search3 = clf.fit(X_train, y_train, eval_set=[(X_test, y_test)], eval_metric='rmse', early_stopping_rounds=5)
+
+# search3.best_params_
+#%% OPTIMIZACION PARAMETROS SKOPT
 
 # define blackbox function
 def f(x):
     print(x)
     params = {
+        'num_threads': 8,
         'task': 'train',
-        'boosting_type': 'dart',
-        'objective': 'binary',
-        'learning_rate':0.1, # x[0],
-        'num_leaves':10,  # x[1],
-        'min_data_in_leaf':20,  # x[2],
-        'num_iteration':10,  # x[3],
-        'max_bin': 1, #x[4],
-        'verbose': 1
+        'boosting_type': 'gbdt',
+        'objective': 'poisson',
+        'learning_rate': x[0],
+        'num_leaves': x[1], 
+        'min_data_in_leaf': x[2],
+        'num_iteration': x[3], 
+        'max_bin': x[4],
+        'verbose': 1,
+        'metric': "rmse",
+        'lambda_l2': x[5]
     }
     
     gbm = lgb.LGBMRegressor(**params)
 
     gbm.fit(X_train, y_train, eval_set=[(X_test, y_test)], early_stopping_rounds=5) 
     
-            
-    print(type(gbm.predict(X_test, num_iteration=gbm.best_iteration)[0]),type(up_test.astype(int)[0]))
+    print('score: ', mean_squared_error(gbm.predict(X_test), y_test))
     
-    print('score: ', mean_squared_error(gbm.predict(X_test, num_iteration=gbm.best_iteration), up_test.astype(float)))
-    
-    return mean_squared_error(gbm.predict(X_test, num_iteration=gbm.best_iteration), up_test.astype(float))
+    return mean_squared_error(gbm.predict(X_test), y_test)
 
 # optimize params in these ranges
 spaces = [
-    (0.19, 0.20), #learning_rate
-    (2450, 2600), #num_leaves
-    (210, 230), #min_data_in_leaf
-    (310, 330), #num_iteration
-    (200, 220) #max_bin
+    (0.05, 0.10), #learning_rate.
+    (100, 150), #num_leaves.
+    (50, 150), #min_data_in_leaf
+    (280, 300), #num_iteration
+    (200, 220), #max_bin
+    (0, 0.1) #max depth
     ]
 
 # run optimization
@@ -206,7 +233,7 @@ from skopt import gp_minimize
 res = gp_minimize(
     f, spaces,
     acq_func="EI",
-    n_calls=10) # increase n_calls for more performance
+    n_calls=20) # increase n_calls for more performance
 
 # print tuned params
 print(res.x)
@@ -215,9 +242,101 @@ print(res.x)
 from skopt.plots import plot_convergence
 plot_convergence(res)
 
+#%%OPTIMIZACION PARAMETROS OPTUNA
+import optuna
+def fit_lgbm(trial, X_train, y_train,  X_test, y_test, seed=None, cat_features=cat_feats):
+    """Train Light GBM model"""
+ 
+    params = {
+    'num_threads': 8,
+    'task': 'train',
+    'boosting_type': 'gbdt',
+    'objective': 'poisson',
+    'learning_rate': trial.suggest_uniform('learning_rate', 0.05, 0.3),
+    'num_leaves': trial.suggest_int('num_leaves', 100, 200), 
+    'min_data_in_leaf': trial.suggest_int('min_data_in_leaf', 50, 150),
+    'num_iteration': 300, 
+    'verbose': 1,
+    'metric': "rmse",
+    'lambda_l2': trial.suggest_uniform('learning_rate', 0, 0.1)
+    }
+   
+
+    params['seed'] = 13
+
+    early_stop = 5
+    verbose_eval = 1
+
+    d_train = lgb.Dataset(X_train, label=y_train, categorical_feature=cat_features)
+    d_valid = lgb.Dataset(X_test, label=y_test, categorical_feature=cat_features)
+    watchlist = [d_train, d_valid]
+
+    print('training LGB:')
+    model = lgb.train(params,
+                      train_set=d_train,
+                      num_boost_round=100,
+                      valid_sets=watchlist,
+                      verbose_eval=verbose_eval,
+                      early_stopping_rounds=early_stop)
+
+    # predictions
+    y_pred_valid = model.predict(X_test, num_iteration=model.best_iteration)
+    
+    print('best_score', model.best_score)
+    log = {'train/rmse': model.best_score['training']['rmse'],
+           'valid/rmse': model.best_score['valid_1']['rmse']}
+    return model, y_pred_valid, log
+
+def objective(trial: Trial):
+    # folds = 5
+    # seed = 13
+    # shuffle = False
+    # kf = KFold(n_splits=folds, shuffle=shuffle, random_state=seed)
+
+    # X_train, y_train = create_X_y(train_df, target_meter=target_meter)
+    # y_valid_pred_total = np.zeros(X_train.shape[0])
+    # gc.collect()
+    # print('target_meter', target_meter, X_train.shape)
+
+    # cat_features = [X_train.columns.get_loc(cat_col) for cat_col in category_cols]
+    # print('cat_features', cat_features)
+
+    models = []
+    # valid_score = 0
+    # for train_idx, valid_idx in kf.split(X_train, y_train):
+    #     train_data = X_train.iloc[train_idx,:], y_train[train_idx]
+    #     valid_data = X_train.iloc[valid_idx,:], y_train[valid_idx]
+
+    #     print('train', len(train_idx), 'valid', len(valid_idx))
+    # #     model, y_pred_valid, log = fit_cb(train_data, valid_data, cat_features=cat_features, devices=[0,])
+    model, y_pred_valid, log = fit_lgbm(trial, X_train, y_train,  X_test, y_test, num_rounds=2)
+    #y_valid_pred_total[valid_idx] = y_pred_valid
+    models.append(model)
+    # gc.collect()
+    valid_score = log["valid/rmse"]
+    # if fast_check:
+    #     break
+    # valid_score /= len(models)
+    # if return_info:
+    #     return valid_score, models, y_pred_valid, y_train
+    # else:
+    return valid_score
+
+study = optuna.create_study()
+study.optimize(objective, n_trials=4)
 
 
-#%% XGBoost
+print('Best trial: score {}, params {}'.format(study.best_trial.value, study.best_trial.params))
+
+study.trials_dataframe()
+
+import plotly
+optuna.visualization.plot_optimization_history(study)
+optuna.visualization.plot_intermediate_values(study)
+optuna.visualization.plot_slice(study)
+optuna.visualization.plot_contour(study)
+optuna.visualization.plot_parallel_coordinate(study)
+#%% XGBoost individual
 import xgboost as xgb
 params2 = {
         "n_estimators" : 50,
@@ -259,28 +378,7 @@ reg = StackingRegressor(
 reg.fit(X_train, y_train)
 
 
-#%% Ranomized search
 
-from sklearn.model_selection import RandomizedSearchCV
-from scipy.stats import uniform
-
-light = lgb.LGBMRegressor(num_iterations=15, objective = "poisson", silent = False, seed = 10)
-from scipy.stats import uniform
-params = {
-         "boosting_type" : ['gbdt', 'rf'],
-        #"objective" : ["poisson"],
-        "learning_rate" : uniform(loc=0.05, scale=0.5),
-        # 'num_leaves': [100, 120, 140],
-         'min_child_samples ': [10, 20, 30],
-        # "n_estimators" : [100, 120, 140]
-        # 'reg_alpha' : uniform(loc=0.05, scale=1),
-        # 'reg_lambda ' : uniform(loc=0.05, scale=1),
-}
-clf = RandomizedSearchCV(estimator = light, param_distributions = params, n_iter = 10, n_jobs=-1, cv = 2, verbose = 1)
-print("Training...")
-search3 = clf.fit(X_train, y_train, eval_set=[(X_test, y_test)], eval_metric='rmse', early_stopping_rounds=5)
-
-search3.best_params_
 
 #%% Ver las distribuciones de cada feature y transformaciones
 
@@ -305,7 +403,7 @@ validation and learning curve
 #%% GUARDAR MODELOS
 
 from joblib import dump, load
-dump(reg, 'stack.joblib') 
+dump(lgb_, 'optlgb.joblib') 
 
 #%% PREDICCION
 te = create_dt(False)
@@ -315,10 +413,26 @@ for tdelta in range(0, 28):
         day = fday + timedelta(days=tdelta)
         print(tdelta, day)
         tst = te[(te.date >= day - timedelta(days=max_lags)) & (te.date <= day)].copy()
-        create_fea(tst)
+        tst=create_fea(tst)
         tst = tst.loc[tst.date == day , train_cols]
-        te.loc[te.date == day, "sales"] = search3.predict(tst) # magic multiplier by kyakovlev
+        te.loc[te.date == day, "sales"] = lgb_.predict(tst) # magic multiplier by kyakovlev
+        
+        
+te_check = create_dt(True)
 
+for tdelta in range(0, 20):
+        day = fday + timedelta(days=tdelta)-timedelta(days=20)
+        print(tdelta, day)
+        tst = te_check[(te_check.date >= day - timedelta(days=max_lags)) & (te_check.date <= day)].copy()
+        tst=create_fea(tst)
+        tst = tst.loc[tst.date == day , train_cols]
+        te_check.loc[te_check.date == day, "sales_pred"] = lgb_.predict(tst) # magic multiplier by kyakovlev
+te_check.dropna(inplace=True)
+precios = te_check >> select(X.id, X.sales, X.date, X.sales_pred) >> mask(X.id == 'HOBBIES_1_001_CA_1_validation') 
+
+plt.plot(precios.date, precios.sales, color="blue")
+plt.plot(precios.date, precios.sales_pred, color="red")
+plt.show()
 
 #%% MAGIC MULTIPLIER KYAKOVLEV
 alphas = [1.025, 1.023, 1.0175]
@@ -349,7 +463,7 @@ for icount, (alpha, weight) in enumerate(zip(alphas, weights)):
 sub2 = sub.copy()
 sub2["id"] = sub2["id"].str.replace("validation$", "evaluation")
 sub = pd.concat([sub, sub2], axis=0, sort=False)
-sub.to_csv("submission.csv",index=False)
+sub.to_csv("submission_3.csv",index=False)
 
 sub.head(10)
 sub.id.nunique(), sub["id"].str.contains("validation$").sum()
