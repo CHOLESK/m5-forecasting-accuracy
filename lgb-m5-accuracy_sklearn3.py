@@ -28,6 +28,7 @@ fday
 
 def create_dt(is_train = True, nrows = None, first_day = 1200):
     #prices
+    print("Creating df...")
     prices = pd.read_csv(os.getcwd()+"\\datos\\sell_prices.csv", dtype = PRICE_DTYPES)       
     cal = pd.read_csv(os.getcwd()+"\\datos\\calendar.csv", dtype = CAL_DTYPES)
     cal["date"] = pd.to_datetime(cal["date"])
@@ -68,6 +69,7 @@ def create_dt(is_train = True, nrows = None, first_day = 1200):
 
 
 def create_fea(dt):
+    print("Creating features...")
     lags = [1, 7]
     lag_cols = [f"lag_{lag}" for lag in lags ]
     for lag, lag_col in zip(lags, lag_cols):
@@ -138,15 +140,16 @@ np.random.seed(767)
 test_inds = np.random.choice(X.index.values, round(0.25*X.shape[0]), replace = False)
 train_inds = np.setdiff1d(X.index.values, test_inds)
 
+print("Creating train/test...")
 X_train = X.loc[train_inds,]
 X_test = X.loc[test_inds,]
 y_train = y.loc[train_inds]
 y_test = y.loc[test_inds]
 
-
+print("Cleaning workspace...")
 del df, X, y, test_inds,train_inds ; gc.collect()
 
-#%% LGBM individual
+#%% LGBM individual sklearn
 #2.27085 original
 # from time import time
 # t = time()
@@ -243,7 +246,7 @@ from skopt.plots import plot_convergence
 plot_convergence(res)
 
 #%%OPTIMIZACION PARAMETROS OPTUNA
-import optuna
+from optuna import *
 def fit_lgbm(trial, X_train, y_train,  X_test, y_test, seed=None, cat_features=cat_feats):
     """Train Light GBM model"""
  
@@ -258,20 +261,20 @@ def fit_lgbm(trial, X_train, y_train,  X_test, y_test, seed=None, cat_features=c
     'num_iteration': 300, 
     'verbose': 1,
     'metric': "rmse",
-    'lambda_l2': trial.suggest_uniform('learning_rate', 0, 0.1)
+    'lambda_l2': trial.suggest_uniform('lambda_l2', 0, 0.1)
     }
    
 
     params['seed'] = 13
 
     early_stop = 5
-    verbose_eval = 1
+    verbose_eval = 20
 
     d_train = lgb.Dataset(X_train, label=y_train, categorical_feature=cat_features)
     d_valid = lgb.Dataset(X_test, label=y_test, categorical_feature=cat_features)
     watchlist = [d_train, d_valid]
 
-    print('training LGB:')
+    print('Training model:')
     model = lgb.train(params,
                       train_set=d_train,
                       num_boost_round=100,
@@ -288,46 +291,19 @@ def fit_lgbm(trial, X_train, y_train,  X_test, y_test, seed=None, cat_features=c
     return model, y_pred_valid, log
 
 def objective(trial: Trial):
-    # folds = 5
-    # seed = 13
-    # shuffle = False
-    # kf = KFold(n_splits=folds, shuffle=shuffle, random_state=seed)
-
-    # X_train, y_train = create_X_y(train_df, target_meter=target_meter)
-    # y_valid_pred_total = np.zeros(X_train.shape[0])
-    # gc.collect()
-    # print('target_meter', target_meter, X_train.shape)
-
-    # cat_features = [X_train.columns.get_loc(cat_col) for cat_col in category_cols]
-    # print('cat_features', cat_features)
-
     models = []
-    # valid_score = 0
-    # for train_idx, valid_idx in kf.split(X_train, y_train):
-    #     train_data = X_train.iloc[train_idx,:], y_train[train_idx]
-    #     valid_data = X_train.iloc[valid_idx,:], y_train[valid_idx]
-
-    #     print('train', len(train_idx), 'valid', len(valid_idx))
-    # #     model, y_pred_valid, log = fit_cb(train_data, valid_data, cat_features=cat_features, devices=[0,])
-    model, y_pred_valid, log = fit_lgbm(trial, X_train, y_train,  X_test, y_test, num_rounds=2)
-    #y_valid_pred_total[valid_idx] = y_pred_valid
+    model, y_pred_valid, log = fit_lgbm(trial, X_train, y_train,  X_test, y_test)
     models.append(model)
-    # gc.collect()
     valid_score = log["valid/rmse"]
-    # if fast_check:
-    #     break
-    # valid_score /= len(models)
-    # if return_info:
-    #     return valid_score, models, y_pred_valid, y_train
-    # else:
+    gc.collect()
     return valid_score
 
-study = optuna.create_study()
-study.optimize(objective, n_trials=4)
+study = create_study()
+study.optimize(objective, n_trials=10)
 
 
 print('Best trial: score {}, params {}'.format(study.best_trial.value, study.best_trial.params))
-
+#Best trial: score 2.186941436074196, params {'learning_rate': 0.1284288977810651, 'num_leaves': 186, 'min_data_in_leaf': 130, 'lambda_l2': 0.037660303077688945}
 study.trials_dataframe()
 
 import plotly
@@ -336,7 +312,42 @@ optuna.visualization.plot_intermediate_values(study)
 optuna.visualization.plot_slice(study)
 optuna.visualization.plot_contour(study)
 optuna.visualization.plot_parallel_coordinate(study)
-#%% XGBoost individual
+
+#%% Modelo lgb
+
+params = {
+    'num_threads': 8,
+    'task': 'train',
+    'boosting_type': 'gbdt',
+    'objective': 'poisson',
+    'learning_rate': 0.1284288977810651,
+    'num_leaves': 186, 
+    'min_data_in_leaf': 130,
+    'num_iteration': 1500, 
+    'verbose': 1,
+    'metric': "rmse",
+    'lambda_l2': 0.037660303077688945
+    }
+   
+
+params['seed'] = 13
+
+early_stop = 5
+verbose_eval = 20
+
+d_train = lgb.Dataset(X_train, label=y_train, categorical_feature=cat_feats)
+d_valid = lgb.Dataset(X_test, label=y_test, categorical_feature=cat_feats)
+watchlist = [d_train, d_valid]
+
+print('Training model:')
+lgb_ = lgb.train(params,
+                  train_set=d_train,
+                  num_boost_round=100,
+                  valid_sets=watchlist,
+                  verbose_eval=verbose_eval,
+                  early_stopping_rounds=early_stop)
+    
+#%% XGBoost individual sklearn
 import xgboost as xgb
 params2 = {
         "n_estimators" : 50,
@@ -403,13 +414,13 @@ validation and learning curve
 #%% GUARDAR MODELOS
 
 from joblib import dump, load
-dump(lgb_, 'optlgb.joblib') 
-
+dump(lgb_, 'lgb25-4.joblib') #lgb24-4, rmse: 2.1648(500); original 2.27085(340)
+lgb_ = load('lgb25-4.joblib') 
 #%% PREDICCION
 te = create_dt(False)
-cols = [f"F{i}" for i in range(1,29)]
+cols = [f"F{i}" for i in range(1,h + 1)]
 
-for tdelta in range(0, 28):
+for tdelta in range(0, h):
         day = fday + timedelta(days=tdelta)
         print(tdelta, day)
         tst = te[(te.date >= day - timedelta(days=max_lags)) & (te.date <= day)].copy()
@@ -417,26 +428,56 @@ for tdelta in range(0, 28):
         tst = tst.loc[tst.date == day , train_cols]
         te.loc[te.date == day, "sales"] = lgb_.predict(tst) # magic multiplier by kyakovlev
         
-        
+#%% Check ultimos 15 dias con datos        
 te_check = create_dt(True)
-
-for tdelta in range(0, 20):
-        day = fday + timedelta(days=tdelta)-timedelta(days=20)
+te_check["sales_original"] = te_check["sales"]
+for tdelta in range(0, 15):
+        day = fday + timedelta(days=tdelta)-timedelta(days=15)
         print(tdelta, day)
         tst = te_check[(te_check.date >= day - timedelta(days=max_lags)) & (te_check.date <= day)].copy()
-        tst=create_fea(tst)
+        tst = create_fea(tst)
         tst = tst.loc[tst.date == day , train_cols]
-        te_check.loc[te_check.date == day, "sales_pred"] = lgb_.predict(tst) # magic multiplier by kyakovlev
-te_check.dropna(inplace=True)
-precios = te_check >> select(X.id, X.sales, X.date, X.sales_pred) >> mask(X.id == 'HOBBIES_1_001_CA_1_validation') 
+        te_check.loc[te_check.date == day, "sales"] = lgb_.predict(tst) # magic multiplier by kyakovlev
+##########
+te_check2 = create_dt(True)
+te_check2 = create_fea(te_check2)
 
-plt.plot(precios.date, precios.sales, color="blue")
-plt.plot(precios.date, precios.sales_pred, color="red")
+for tdelta in range(0, 15):
+        day = fday + timedelta(days=tdelta)-timedelta(days=15)
+        print(tdelta, day)
+        tst = te_check2.loc[te_check2.date == day , train_cols]
+        te_check2.loc[te_check2.date == day, "sales"] = lgb_.predict(tst) # magic multiplier by kyakovlev
+
+te_check2["sales_2"] = te_check2["sales"]        
+te_check2.dropna(inplace=True)
+from dfply import *
+precios2 = te_check2 >> select(X.id, X.sales_2, X.date)
+precios = te_check >> select(X.id, X.sales, X.date, X.sales_original) >> \
+    full_join(precios2, by = ['id', 'date'])  >> \
+    mask(X.date >= day-timedelta(days=15)) 
+precioss = precios >> group_by(X.date) >> summarize(media_pred1 = X.sales.mean(), media_pred2 = X.sales_2.mean(), media_real =  X.sales_original.mean())
+    
+    #mask(X.id == 'HOBBIES_1_003_CA_1_validation')
+precios=precios.loc[precios.date >= datetime(2016,4, 10)]    
+precios.dropna(inplace = True)
+alphas = [1.025, 1.023, 1.0175]
+weights = [1/len(alphas)]*len(alphas)
+precios["sales_alphas"] = weights[0]*alphas[0]*precios.sales+weights[1]*alphas[1]*precios.sales+weights[1]*alphas[1]*precios.sales
+import matplotlib.pyplot as plt
+plt.plot(precios.date, precios.sales_original, color="green")
+plt.plot(precios.date, precios.sales, color="red")
+plt.plot(precios.date, precios.sales_2, color="blue")
+plt.plot(precios.date, precios.sales_alphas, color="black")
+plt.show()
+
+plt.plot(precioss.date, precioss.media_pred1, color="blue")
+plt.plot(precioss.date, precioss.media_pred2, color="red")
+plt.plot(precioss.date, precioss.media_real, color="green")
 plt.show()
 
 #%% MAGIC MULTIPLIER KYAKOVLEV
 alphas = [1.025, 1.023, 1.0175]
-alphas = [1]
+#alphas = [1]
 weights = [1/len(alphas)]*len(alphas)
 sub = 0.
 

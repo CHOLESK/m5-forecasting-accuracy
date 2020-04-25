@@ -18,11 +18,7 @@ import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 # For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
 
 import os
-files = []
-#for dirname, _, filenames in os.walk('/kaggle/input'):
-for dirname, _, filenames in os.walk('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5-datos'):
-    for filename in filenames:
-        files.append(os.path.join(dirname, filename))
+os.chdir('C:/Users/laguila/Google Drive/ARC_KAGGLE/m5')
 
 # Any results you write to the current directory are saved as output.
 
@@ -45,13 +41,13 @@ fday = datetime(2016,4, 25)
 fday
 
 def create_dt(is_train = True, nrows = None, first_day = 1200):
-    prices = pd.read_csv(files[4], dtype = PRICE_DTYPES)
+    prices = pd.read_csv(os.getcwd()+"\\datos\\sell_prices.csv", dtype = PRICE_DTYPES)
     for col, col_dtype in PRICE_DTYPES.items():
         if col_dtype == "category":
             prices[col] = prices[col].cat.codes.astype("int16")
             prices[col] -= prices[col].min()
             
-    cal = pd.read_csv(files[0], dtype = CAL_DTYPES)
+    cal = pd.read_csv(os.getcwd()+"\\datos\\calendar.csv", dtype = CAL_DTYPES)
     cal["date"] = pd.to_datetime(cal["date"])
     for col, col_dtype in CAL_DTYPES.items():
         if col_dtype == "category":
@@ -63,7 +59,7 @@ def create_dt(is_train = True, nrows = None, first_day = 1200):
     catcols = ['id', 'item_id', 'dept_id','store_id', 'cat_id', 'state_id']
     dtype = {numcol:"float32" for numcol in numcols} 
     dtype.update({col: "category" for col in catcols if col != "id"})
-    dt = pd.read_csv(files[2], 
+    dt = pd.read_csv(os.getcwd()+"\\datos\\sales_train_validation.csv", 
                      nrows = nrows, usecols = catcols + numcols, dtype = dtype)
     
     for col in catcols:
@@ -187,6 +183,46 @@ for tdelta in range(0,28):
    create_fea(tst)
    tst = tst.loc[tst.date == day , train_cols]
    te.loc[te.date == day, "sales"] = m_lgb.predict(tst) # magic multiplier by kyakovlev
+
+#%%
+te_check = create_dt(True)
+
+for tdelta in range(0, 15):
+        day = fday + timedelta(days=tdelta)-timedelta(days=15)
+        print(tdelta, day)
+        tst = te_check[(te_check.date >= day - timedelta(days=max_lags)) & (te_check.date <= day)].copy()
+        tst=create_fea(tst)
+        tst = tst.loc[tst.date == day , train_cols]
+        te_check.loc[te_check.date == day, "sales_pred"] = m_lgb.predict(tst) # magic multiplier by kyakovlev
+
+te_check2 = create_dt(True)
+te_check2 = create_fea(te_check2)
+
+for tdelta in range(0, 15):
+        print(tdelta, day)
+        day = fday + timedelta(days=tdelta)-timedelta(days=15)
+        tst = te_check2.loc[te_check2.date == day , train_cols]
+        te_check2.loc[te_check2.date == day, "sales_pred_2"] = m_lgb.predict(tst) # magic multiplier by kyakovlev
+        
+te_check2.dropna(inplace=True)
+from dfply import *
+precios2 = te_check2 >> select(X.id, X.sales, X.date, X.sales_pred_2)
+precios = te_check >> select(X.id, X.sales, X.date, X.sales_pred) >> \
+    full_join(precios2, by = ['id', 'date'])  >> \
+    mask(X.id == 'HOBBIES_1_001_CA_1_validation') 
+precios.dropna(inplace = True)
+plt.plot(precios.date, precios.sales_y, color="green")
+plt.plot(precios.date, precios.sales_pred, color="red")
+plt.plot(precios.date, precios.sales_pred_2, color="blue")
+plt.show()
+
+
+
+
+
+#%%
+
+
 
 for icount, (alpha, weight) in enumerate(zip(alphas, weights)):
 
