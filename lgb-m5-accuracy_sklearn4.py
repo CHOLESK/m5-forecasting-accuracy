@@ -28,20 +28,32 @@ fday
 
 
 
-def create_dt(is_train = True, nrows = None, first_day = 1):
-    #prices
-    print("Creating df...")
-    prices = pd.read_csv(os.getcwd()+"\\datos\\sell_prices.csv", dtype = PRICE_DTYPES)       
+def create_dt(is_train = True, nrows = None, first_day = 1200):
+    prices = pd.read_csv(os.getcwd()+"\\datos\\sell_prices.csv", dtype = PRICE_DTYPES)
+    for col, col_dtype in PRICE_DTYPES.items():
+        if col_dtype == "category":
+            prices[col] = prices[col].cat.codes.astype("int16")
+            prices[col] -= prices[col].min()
+            
     cal = pd.read_csv(os.getcwd()+"\\datos\\calendar.csv", dtype = CAL_DTYPES)
     cal["date"] = pd.to_datetime(cal["date"])
+    for col, col_dtype in CAL_DTYPES.items():
+        if col_dtype == "category":
+            cal[col] = cal[col].cat.codes.astype("int16")
+            cal[col] -= cal[col].min()
+    
     start_day = max(1 if is_train  else tr_last-max_lags, first_day)
     numcols = [f"d_{day}" for day in range(start_day,tr_last+1)]
     catcols = ['id', 'item_id', 'dept_id','store_id', 'cat_id', 'state_id']
     dtype = {numcol:"float32" for numcol in numcols} 
     dtype.update({col: "category" for col in catcols if col != "id"})
+    dt = pd.read_csv(os.getcwd()+"\\datos\\sales_train_validation.csv", 
+                     nrows = nrows, usecols = catcols + numcols, dtype = dtype)
     
-    #validation
-    dt = pd.read_csv(os.getcwd()+"\\datos\\sales_train_validation.csv", nrows = nrows, usecols = catcols + numcols, dtype = dtype)
+    for col in catcols:
+        if col != "id":
+            dt[col] = dt[col].cat.codes.astype("int16")
+            dt[col] -= dt[col].min()
     
     if not is_train:
         for day in range(tr_last+1, tr_last+ 28 +1):
@@ -55,77 +67,42 @@ def create_dt(is_train = True, nrows = None, first_day = 1):
     
     dt = dt.merge(cal, on= "d", copy = False)
     dt = dt.merge(prices, on = ["store_id", "item_id", "wm_yr_wk"], copy = False)
-    dt.drop(["weekday", "wm_yr_wk"], axis=1, inplace = True)
-
-    dt['store_id'] = dt['store_id'].map(lambda x: x[-1:]).astype('int16')
-    dt['dept_id'] = dt['dept_id'].map(lambda x: x[-1:]).astype('int16')
-    dt['item_id'] = dt['item_id'].map(lambda x: x[-3:]).astype('int16')
     
-
-
-    dt["binary_id"] = dt['item_id'].map(lambda x: str("0000000000000" + bin(x)[2:])[-10:])
-    
-    for digit in range(0, 10):
-            dt[f"binary_{digit}"] = dt["binary_id"].map(lambda x: x[digit]).astype("int16")
-    
-    # columns = [ 'event_name_1', 'event_type_1', 'event_name_2', 'event_type_2']
-    # for col in columns: 
-    #     dt[col] = dt[col].cat.codes.astype("int16")
-    #     dt[col] -= dt[col].min()
-    dt.drop(["event_name_1", "event_type_1", "event_name_2", "event_type_2", "binary_id"], axis=1, inplace = True)
     return dt
 
 
 def create_fea(dt):
-    print("Creating features...")
-    lags = [1, 7]
+    lags = [7, 28]
     lag_cols = [f"lag_{lag}" for lag in lags ]
     for lag, lag_col in zip(lags, lag_cols):
         dt[lag_col] = dt[["id","sales"]].groupby("id")["sales"].shift(lag)
-    
-    dt["sell_price_change"] = dt[["id","sell_price"]].groupby("id")["sell_price"].shift(1)-dt["sell_price"]
-        
-    dt = dt >> group_by(X.dept_id,X.store_id ,X.cat_id,X.state_id, X.date) >> summarize(Sales_1=X.lag_1.mean())  >> full_join(dt, by=["date", "dept_id","store_id" ,"cat_id","state_id"])
-    dt["Sales_7"] = dt[["id", 'Sales_1']].groupby("id")['Sales_1'].transform(lambda x : round(x.rolling(7).mean(), 2))
-    wins = [1, 7]
-    for win in wins:
+
+    wins = [7, 28]
+    for win in wins :
         for lag,lag_col in zip(lags, lag_cols):
-            dt[f"rmean_{lag}_{win}"] = dt[["id", lag_col]].groupby("id")[lag_col].transform(lambda x : round(x.rolling(win).mean(), 2))
+            dt[f"rmean_{lag}_{win}"] = dt[["id", lag_col]].groupby("id")[lag_col].transform(lambda x : x.rolling(win).mean())
+
     
-    
-    dt=pd.concat([dt, pd.get_dummies(dt.cat_id)], axis=1)
-    dt=pd.concat([dt, pd.get_dummies(dt.state_id)], axis=1)
-    
-    dept_id = pd.get_dummies(dt.dept_id)
-    idds = dept_id.columns
-    dept_id.columns = [f"dept_{idd}" for idd in idds ]
-    
-    store_id = pd.get_dummies(dt.store_id)
-    idds = store_id.columns
-    store_id.columns = [f"store_{idd}" for idd in idds ]
-    
-    dt=pd.concat([dt, store_id, dept_id], axis=1)
-    
-    dt.drop(["cat_id", "state_id", "dept_id", "store_id"], axis=1, inplace = True)
     
     date_features = {
+        
         "wday": "weekday",
         "week": "weekofyear",
         "month": "month",
-        #"quarter": "quarter",
-        #"year": "year",
+        "quarter": "quarter",
+        "year": "year",
         "mday": "day",
+#         "ime": "is_month_end",
+#         "ims": "is_month_start",
     }
+    
+#     dt.drop(["d", "wm_yr_wk", "weekday"], axis=1, inplace = True)
     
     for date_feat_name, date_feat_func in date_features.items():
         if date_feat_name in dt.columns:
             dt[date_feat_name] = dt[date_feat_name].astype("int16")
         else:
             dt[date_feat_name] = getattr(dt["date"].dt, date_feat_func).astype("int16")
-    
-    dt.drop(["d", "year"], axis=1, inplace = True)
-    
-
     
     return dt
             
@@ -134,7 +111,7 @@ def create_fea(dt):
 
       
 
-FIRST_DAY = 340 # If you want to load all the data set it to '1' -->  Great  memory overflow  risk
+FIRST_DAY = 300 # If you want to load all the data set it to '1' -->  Great  memory overflow  risk
 
 df = create_dt(is_train=True, first_day= FIRST_DAY)
 
@@ -143,7 +120,8 @@ df.dropna(inplace = True)
 df.head()
 
 #cat_feats = ["event_name_1", "event_name_2", "event_type_1", "event_type_2"]
-useless_cols = ["id", "sales", "date", "item_id"]
+cat_feats = ['item_id', 'dept_id','store_id', 'cat_id', 'state_id'] + ["event_name_1", "event_name_2", "event_type_1", "event_type_2"]
+useless_cols = ["id", "date", "sales","d", "wm_yr_wk", "weekday"]
 train_cols = df.columns[~df.columns.isin(useless_cols)]
 X = df[train_cols]
 y = df["sales"]
@@ -339,6 +317,21 @@ params = {
     'verbose': 1,
     'metric': "rmse"
     }
+
+params = {
+        "objective" : "poisson",
+        "metric" :"rmse",
+        "force_row_wise" : True,
+        "learning_rate" : 0.073,
+        "sub_row" : 0.73,
+        "bagging_freq" : 1,
+        "lambda_l2" : 0.1,
+         "nthread" : 8,
+        'verbosity': 1,
+        'num_iterations' : 1150,
+        'num_leaves': 124,
+        "min_data_in_leaf": 100,
+}
    
 
 params['seed'] = 13
@@ -346,14 +339,14 @@ params['seed'] = 13
 early_stop = 5
 verbose_eval = 20
 
-d_train = lgb.Dataset(X_train, label=y_train)
-d_valid = lgb.Dataset(X_test, label=y_test)
+d_train = lgb.Dataset(X_train, label=y_train, categorical_feature=cat_feats)
+d_valid = lgb.Dataset(X_test, label=y_test, categorical_feature=cat_feats)
 watchlist = [d_train, d_valid]
 
 print('Training model:')
 lgb_ = lgb.train(params,
                   train_set=d_train,
-                  num_boost_round=100,
+                  #num_boost_round=100,
                   valid_sets=watchlist,
                   verbose_eval=verbose_eval,
                   early_stopping_rounds=early_stop)
@@ -425,7 +418,7 @@ validation and learning curve
 #%% GUARDAR MODELOS
 
 from joblib import dump, load
-dump(lgb_, 'lgb26-4.joblib') #lgb24-4, rmse: 2.1648(500); original 2.27085(340)
+dump(lgb_, 'lgb_original.joblib') #lgb24-4, rmse: 2.1648(500); original 2.27085(340)
 lgb_ = load('lgb26-4.joblib') 
 #%% PREDICCION
 te = create_dt(False)
@@ -465,10 +458,8 @@ from dfply import *
 precios2 = te_check2 >> select(X.id, X.sales_2, X.date)
 precios = te_check >> select(X.id, X.sales, X.date, X.sales_original) >> \
     full_join(precios2, by = ['id', 'date'])  >> \
-    mask(X.date >= day-timedelta(days=15)) 
-precioss = precios >> group_by(X.date) >> summarize(media_pred1 = X.sales.mean(), media_pred2 = X.sales_2.mean(), media_real =  X.sales_original.mean())
+    mask(X.id == 'HOBBIES_1_001_CA_1_validation') 
     
-    #mask(X.id == 'HOBBIES_1_003_CA_1_validation')
 precios=precios.loc[precios.date >= datetime(2016,4, 10)]    
 precios.dropna(inplace = True)
 alphas = [1.025, 1.023, 1.0175]
@@ -480,6 +471,11 @@ plt.plot(precios.date, precios.sales, color="red")
 plt.plot(precios.date, precios.sales_2, color="blue")
 plt.plot(precios.date, precios.sales_alphas, color="black")
 plt.show()
+
+precios2 = te_check2 >> select(X.id, X.sales_2, X.date)
+precios = te_check >> select(X.id, X.sales, X.date, X.sales_original) >> \
+    full_join(precios2, by = ['id', 'date'])          
+precioss = precios >> group_by(X.date) >> summarize(media_pred1 = X.sales.mean(), media_pred2 = X.sales_2.mean(), media_real =  X.sales_original.mean())
 
 plt.plot(precioss.date, precioss.media_pred1, color="blue")
 plt.plot(precioss.date, precioss.media_pred2, color="red")

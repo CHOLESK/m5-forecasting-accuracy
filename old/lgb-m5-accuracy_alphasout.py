@@ -186,34 +186,38 @@ for tdelta in range(0,28):
 
 #%%
 te_check = create_dt(True)
-
+te_check["sales_original"] = te_check["sales"]
 for tdelta in range(0, 15):
         day = fday + timedelta(days=tdelta)-timedelta(days=15)
         print(tdelta, day)
         tst = te_check[(te_check.date >= day - timedelta(days=max_lags)) & (te_check.date <= day)].copy()
-        tst=create_fea(tst)
+        create_fea(tst)
         tst = tst.loc[tst.date == day , train_cols]
-        te_check.loc[te_check.date == day, "sales_pred"] = m_lgb.predict(tst) # magic multiplier by kyakovlev
+        te_check.loc[te_check.date == day, "sales"] = m_lgb.predict(tst) # magic multiplier by kyakovlev
 
 te_check2 = create_dt(True)
-te_check2 = create_fea(te_check2)
+create_fea(te_check2)
 
 for tdelta in range(0, 15):
         print(tdelta, day)
         day = fday + timedelta(days=tdelta)-timedelta(days=15)
         tst = te_check2.loc[te_check2.date == day , train_cols]
-        te_check2.loc[te_check2.date == day, "sales_pred_2"] = m_lgb.predict(tst) # magic multiplier by kyakovlev
-        
+        te_check2.loc[te_check2.date == day, "sales"] = m_lgb.predict(tst) # magic multiplier by kyakovlev
+
+te_check2["sales_2"] = te_check2["sales"]        
 te_check2.dropna(inplace=True)
 from dfply import *
-precios2 = te_check2 >> select(X.id, X.sales, X.date, X.sales_pred_2)
-precios = te_check >> select(X.id, X.sales, X.date, X.sales_pred) >> \
+precios2 = te_check2 >> select(X.id, X.sales_2, X.date)
+precios = te_check >> select(X.id, X.sales, X.date, X.sales_original) >> \
     full_join(precios2, by = ['id', 'date'])  >> \
-    mask(X.id == 'HOBBIES_1_001_CA_1_validation') 
+    mask(X.id == 'HOBBIES_1_003_CA_1_validation')
+
+precios=precios.loc[precios.date >= datetime(2016,4, 10)]    
 precios.dropna(inplace = True)
-plt.plot(precios.date, precios.sales_y, color="green")
-plt.plot(precios.date, precios.sales_pred, color="red")
-plt.plot(precios.date, precios.sales_pred_2, color="blue")
+import matplotlib.pyplot as plt
+plt.plot(precios.date, precios.sales_original, color="green")
+plt.plot(precios.date, precios.sales, color="red")
+plt.plot(precios.date, precios.sales_2, color="blue")
 plt.show()
 
 
