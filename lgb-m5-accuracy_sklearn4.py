@@ -21,12 +21,10 @@ PRICE_DTYPES = {"store_id": "category", "item_id": "category", "wm_yr_wk": "int1
 pd.options.display.max_columns = 50
 
 h = 28 
-max_lags = 14
+max_lags = 57
 tr_last = 1913
 fday = datetime(2016,4, 25) 
 fday
-
-
 
 def create_dt(is_train = True, nrows = None, first_day = 1200):
     prices = pd.read_csv(os.getcwd()+"\\datos\\sell_prices.csv", dtype = PRICE_DTYPES)
@@ -103,23 +101,23 @@ def create_fea(dt):
             dt[date_feat_name] = dt[date_feat_name].astype("int16")
         else:
             dt[date_feat_name] = getattr(dt["date"].dt, date_feat_func).astype("int16")
-    
-    return dt
             
-    
+            
 
-
-      
-
-FIRST_DAY = 300 # If you want to load all the data set it to '1' -->  Great  memory overflow  risk
+FIRST_DAY = 340 # If you want to load all the data set it to '1' -->  Great  memory overflow  ris
 
 df = create_dt(is_train=True, first_day= FIRST_DAY)
+df.shape
 
-df = create_fea(df)
-df.dropna(inplace = True)
 df.head()
+df.info()
 
-#cat_feats = ["event_name_1", "event_name_2", "event_type_1", "event_type_2"]
+create_fea(df)
+df.shape
+
+df.dropna(inplace = True)
+df.shape
+
 cat_feats = ['item_id', 'dept_id','store_id', 'cat_id', 'state_id'] + ["event_name_1", "event_name_2", "event_type_1", "event_type_2"]
 useless_cols = ["id", "date", "sales","d", "wm_yr_wk", "weekday"]
 train_cols = df.columns[~df.columns.isin(useless_cols)]
@@ -128,7 +126,7 @@ y = df["sales"]
 
 np.random.seed(767)
 
-test_inds = np.random.choice(X.index.values, round(0.25*X.shape[0]), replace = False)
+test_inds = np.random.choice(X.index.values, 2_000_000, replace = False)
 train_inds = np.setdiff1d(X.index.values, test_inds)
 
 print("Creating train/test...")
@@ -260,18 +258,17 @@ def fit_lgbm(trial, X_train, y_train,  X_test, y_test, seed=None):
     early_stop = 5
     verbose_eval = 20
 
-    d_train = lgb.Dataset(X_train, label=y_train)
-    d_valid = lgb.Dataset(X_test, label=y_test)
-    watchlist = [d_train, d_valid]
 
+    d_train = lgb.Dataset(X_train, label=y_train, categorical_feature=cat_feats, free_raw_data=False)
+    d_valid = lgb.Dataset(X_test, label=y_test, categorical_feature=cat_feats, free_raw_data=False)
+    
     print('Training model:')
     model = lgb.train(params,
                       train_set=d_train,
-                      num_boost_round=100,
-                      valid_sets=watchlist,
+                      #num_boost_round=100,
+                      valid_sets=[d_valid],
                       verbose_eval=verbose_eval,
                       early_stopping_rounds=early_stop)
-
     # predictions
     y_pred_valid = model.predict(X_test, num_iteration=model.best_iteration)
     
@@ -305,18 +302,18 @@ optuna.visualization.plot_parallel_coordinate(study)
 
 #%% Modelo lgb
 
-params = {
-    'num_threads': 8,
-    'task': 'train',
-    'boosting_type': 'gbdt',
-    'objective': 'poisson',
-    'learning_rate': 0.14053088280601883,
-    'num_leaves': 168, 
-    'min_data_in_leaf': 117,
-    'num_iteration': 1500, 
-    'verbose': 1,
-    'metric': "rmse"
-    }
+# params = {
+#     'num_threads': 8,
+#     'task': 'train',
+#     'boosting_type': 'gbdt',
+#     'objective': 'poisson',
+#     'learning_rate': 0.14053088280601883,
+#     'num_leaves': 168, 
+#     'min_data_in_leaf': 117,
+#     'num_iteration': 1500, 
+#     'verbose': 1,
+#     'metric': "rmse"
+#     }
 
 params = {
         "objective" : "poisson",
@@ -328,7 +325,7 @@ params = {
         "lambda_l2" : 0.1,
          "nthread" : 8,
         'verbosity': 1,
-        'num_iterations' : 1150,
+        'num_iterations' : 1500,
         'num_leaves': 124,
         "min_data_in_leaf": 100,
 }
@@ -339,15 +336,14 @@ params['seed'] = 13
 early_stop = 5
 verbose_eval = 20
 
-d_train = lgb.Dataset(X_train, label=y_train, categorical_feature=cat_feats)
-d_valid = lgb.Dataset(X_test, label=y_test, categorical_feature=cat_feats)
-watchlist = [d_train, d_valid]
+d_train = lgb.Dataset(X_train, label=y_train, categorical_feature=cat_feats, free_raw_data=False)
+d_valid = lgb.Dataset(X_test, label=y_test, categorical_feature=cat_feats, free_raw_data=False)
 
 print('Training model:')
 lgb_ = lgb.train(params,
                   train_set=d_train,
                   #num_boost_round=100,
-                  valid_sets=watchlist,
+                  valid_sets=[d_valid],
                   verbose_eval=verbose_eval,
                   early_stopping_rounds=early_stop)
     
@@ -419,7 +415,7 @@ validation and learning curve
 
 from joblib import dump, load
 dump(lgb_, 'lgb_original.joblib') #lgb24-4, rmse: 2.1648(500); original 2.27085(340)
-lgb_ = load('lgb26-4.joblib') 
+#lgb_ = load('lgb26-4.joblib') 
 #%% PREDICCION
 te = create_dt(False)
 cols = [f"F{i}" for i in range(1,h + 1)]
@@ -428,7 +424,7 @@ for tdelta in range(0, h):
         day = fday + timedelta(days=tdelta)
         print(tdelta, day)
         tst = te[(te.date >= day - timedelta(days=max_lags)) & (te.date <= day)].copy()
-        tst=create_fea(tst)
+        create_fea(tst)
         tst = tst.loc[tst.date == day , train_cols]
         te.loc[te.date == day, "sales"] = lgb_.predict(tst) # magic multiplier by kyakovlev
         
@@ -439,12 +435,12 @@ for tdelta in range(0, 15):
         day = fday + timedelta(days=tdelta)-timedelta(days=15)
         print(tdelta, day)
         tst = te_check[(te_check.date >= day - timedelta(days=max_lags)) & (te_check.date <= day)].copy()
-        tst = create_fea(tst)
+        create_fea(tst)
         tst = tst.loc[tst.date == day , train_cols]
         te_check.loc[te_check.date == day, "sales"] = lgb_.predict(tst) # magic multiplier by kyakovlev
 ##########
 te_check2 = create_dt(True)
-te_check2 = create_fea(te_check2)
+create_fea(te_check2)
 
 for tdelta in range(0, 15):
         day = fday + timedelta(days=tdelta)-timedelta(days=15)
@@ -511,7 +507,7 @@ for icount, (alpha, weight) in enumerate(zip(alphas, weights)):
 sub2 = sub.copy()
 sub2["id"] = sub2["id"].str.replace("validation$", "evaluation")
 sub = pd.concat([sub, sub2], axis=0, sort=False)
-sub.to_csv("submission_3.csv",index=False)
+sub.to_csv("submission.csv",index=False)
 
 sub.head(10)
 sub.id.nunique(), sub["id"].str.contains("validation$").sum()
