@@ -36,7 +36,7 @@ tr_last = 1913
 
 
 def create_dt(is_train = True, nrows = None, first_day = 1800):
-    prices = pd.read_csv(files[3], dtype = PRICE_DTYPES)
+    prices = pd.read_csv(files[4], dtype = PRICE_DTYPES)
     for col, col_dtype in PRICE_DTYPES.items():
         if col_dtype == "category":
             prices[col] = prices[col].cat.codes.astype("int16")
@@ -54,7 +54,7 @@ def create_dt(is_train = True, nrows = None, first_day = 1800):
     catcols = ['id', 'item_id', 'dept_id','store_id', 'cat_id', 'state_id']
     dtype = {numcol:"float32" for numcol in numcols} 
     dtype.update({col: "category" for col in catcols if col != "id"})
-    dt = pd.read_csv(files[1], 
+    dt = pd.read_csv(files[2], 
                      nrows = nrows, usecols = catcols + numcols, dtype = dtype)
     
     for col in catcols:
